@@ -12,3 +12,7 @@ dist/
 
 test/integration/artifacts
 test/integration/test-report
+
+package-lock.json
+env.js
+src/env.js

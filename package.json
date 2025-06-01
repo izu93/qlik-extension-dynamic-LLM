@@ -1,14 +1,23 @@
 {
   "name": "dynamicLLM",
   "version": "0.1.0",
-  "description": "",
+  "description": "Dynamic LLM Extension for Qlik Cloud",
   "license": "MIT",
   "author": {
-    "name": "Karthik Burra",
-    "email": "karthik.burra@qlik.com"
+    "name": "Your Name",
+    "email": "your.email@domain.com"
   },
-  "keywords": ["qlik", "nebula", "stardust"],
-  "files": ["dist"],
+  "keywords": [
+    "qlik",
+    "nebula",
+    "stardust",
+    "llm",
+    "ai"
+  ],
+  "files": [
+    "dist",
+    "assets/preview.png"
+  ],
   "engines": {
     "node": ">=18.10.0"
   },
