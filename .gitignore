@@ -16,3 +16,7 @@ test/integration/test-report
 package-lock.json
 env.js
 src/env.js
+
+dynamicLLM-ext.zip
+dynamicLLM-ext
+dynamicLLM-ext/

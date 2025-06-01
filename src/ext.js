@@ -22,8 +22,11 @@ export default function ext(galaxy) {
             },
           },
         },
-        settings: {
-          uses: "settings",
+
+        // Custom Configuration section (renamed from settings)
+        configuration: {
+          type: "items",
+          label: "Configuration",
           items: {
             // LLM Configuration Section (Collapsible)
             llmConfig: {
@@ -37,9 +40,11 @@ export default function ext(galaxy) {
                   ref: "props.connectionName",
                   options: [
                     { value: "", label: "Select connection..." },
-                    { value: "openai-connection", label: "OpenAI Connection" },
-                    { value: "claude-connection", label: "Claude Connection" },
-                    { value: "custom-llm", label: "Custom LLM" },
+                    {
+                      value: "anthropic-claude-3-5-sonnet-bedrock",
+                      label: "Anthropic Claude 3.5 Sonnet via Bedrock",
+                    },
+                    { value: "openai-gpt-4", label: "Open AI GPT 4" },
                   ],
                   defaultValue: "",
                 },
@@ -163,10 +168,11 @@ export default function ext(galaxy) {
           },
         },
 
-        // Keep Appearance separate (standard Qlik section)
+        // Single Appearance section with all appearance-related items
         appearance: {
           uses: "settings",
           items: {
+            // Custom styling section
             styling: {
               type: "items",
               label: "Styling",
