@@ -154,27 +154,6 @@ npm test
 npm run test:integration
 ```
 
-## Use Cases
-
-### Business Intelligence
-- **Automated Report Generation**: Generate insights from data automatically
-- **Natural Language Queries**: Ask questions about your data in plain English
-- **Trend Analysis**: Get AI-powered interpretations of business trends
-
-### Advanced Analytics
-- **Predictive Insights**: Combine machine learning outputs with LLM analysis
-- **Feature Explanation**: Use SHAP values to explain model decisions
-- **Anomaly Investigation**: Let AI help investigate data anomalies
-
-### Customer Analytics
-- **Sentiment Analysis**: Analyze customer feedback and reviews
-- **Personalization**: Generate personalized recommendations
-- **Churn Analysis**: Understand and predict customer behavior
-
-## Contributing
-
-We welcome contributions! Please see our [Contributing Guidelines](CONTRIBUTING.md) for details.
-
 ### Development Setup
 1. Fork the repository
 2. Create a feature branch
@@ -208,14 +187,6 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 - Email: [karthik.burra@qlik.com]
 - Issues: [GitHub Issues](https://github.com/izu93/qlik-extension-dynamic-LLM/issues)
 - Discussions: [GitHub Discussions](https://github.com/izu93/qlik-extension-dynamic-LLM/discussions)
-
-## Roadmap
-
-- [ ] **v1.1**: Multi-model support (Claude, OpenAI)
-- [ ] **v1.2**: Prompt templates library
-- [ ] **v1.3**: Response caching and history
-- [ ] **v1.4**: Advanced visualizations for LLM outputs
-- [ ] **v2.0**: Integrated fine-tuning capabilities
 
 ---
 
