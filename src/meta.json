@@ -1,16 +1,5 @@
 {
-  "name": "qlik-extension-false-churn-analysis",
-  "description": "A dynamic Qlik Sense extension for comparing Renewal and New Opportunity data with custom fields and confidence scoring.",
-  "type": "visualization",
-  "version": "1.0.0",
-  "author": "Your Name or Company",
+  "name": "dynamicLLM",
   "icon": "extension",
-  "preview": "preview.png",
-  "keywords": "churn, renewal, comparison, extension, qlik",
-  "homepage": "https://github.com/izu93/qlik-extension-comparison/qlik-extension-false-churn-analysis",
-  "repository": {
-    "type": "git",
-    "url": "https://github.com/izu93/qlik-extension-comparison/qlik-extension-false-churn-analysis.git"
-  },
-  "license": "MIT"
+  "preview": ""
 }
