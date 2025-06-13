@@ -153,7 +153,6 @@ export default function supernova(galaxy) {
 
           // Show full configuration preview when settings are configured
           const containerStyle = {
-            padding: "20px",
             fontFamily: extensionData.font,
             fontSize: `${extensionData.fontSize}px`,
             color: extensionData.fontColor.color,
@@ -161,8 +160,6 @@ export default function supernova(galaxy) {
             display: "flex",
             flexDirection: "column",
             gap: "15px",
-            border: "1px solid #e0e0e0",
-            borderRadius: "4px",
             backgroundColor: "#fff",
           };
 
@@ -170,108 +167,16 @@ export default function supernova(galaxy) {
 
           // Title
           const title = document.createElement("h3");
-          title.textContent = "Dynamic LLM Extension - Configuration Preview";
+          title.textContent = "Dynamic LLM Response";
           title.style.margin = "0 0 20px 0";
           title.style.color = "#333";
           container.appendChild(title);
-
-          // Connection section
-          const connectionSection = document.createElement("div");
-          connectionSection.innerHTML = `
-            <div style="padding: 15px; border: 1px solid #ddd; border-radius: 4px; background-color: #f9f9f9;">
-              <h4 style="margin: 0 0 10px 0; color: #555;">Connection Settings</h4>
-              <div style="margin-bottom: 8px;">
-                <strong>Connection Name:</strong> 
-                <span style="background: #fff; padding: 4px 8px; border-radius: 3px; border: 1px solid #ddd;">
-                  ${extensionData.connectionName || "Not selected"}
-                </span>
-              </div>
-            </div>
-          `;
-          container.appendChild(connectionSection);
-
-          // Prompts section
-          const promptsSection = document.createElement("div");
-          promptsSection.innerHTML = `
-            <div style="padding: 15px; border: 1px solid #ddd; border-radius: 4px; background-color: #f9f9f9;">
-              <h4 style="margin: 0 0 10px 0; color: #555;">Prompts</h4>
-              <div style="margin-bottom: 10px;">
-                <strong>System Prompt:</strong><br>
-                <div style="background: #fff; padding: 8px; border-radius: 3px; border: 1px solid #ddd; min-height: 40px; margin-top: 5px;">
-                  ${extensionData.systemPrompt || "No system prompt configured"}
-                </div>
-              </div>
-              <div>
-                <strong>User Prompt:</strong><br>
-                <div style="background: #fff; padding: 8px; border-radius: 3px; border: 1px solid #ddd; min-height: 60px; margin-top: 5px;">
-                  ${extensionData.userPrompt || "No user prompt configured"}
-                </div>
-              </div>
-            </div>
-          `;
-          container.appendChild(promptsSection);
-
-          // Variables section
-          const variablesSection = document.createElement("div");
-          variablesSection.innerHTML = `
-            <div style="padding: 15px; border: 1px solid #ddd; border-radius: 4px; background-color: #f9f9f9;">
-              <h4 style="margin: 0 0 10px 0; color: #555;">Dynamic Variables</h4>
-              <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
-                <div>
-                  <strong>Key:</strong> 
-                  <span style="background: #fff; padding: 4px 8px; border-radius: 3px; border: 1px solid #ddd; display: inline-block; margin-left: 5px;">
-                    ${extensionData.dynamicVariableKey || "None"}
-                  </span>
-                </div>
-                <div>
-                  <strong>Value:</strong> 
-                  <span style="background: #fff; padding: 4px 8px; border-radius: 3px; border: 1px solid #ddd; display: inline-block; margin-left: 5px;">
-                    ${extensionData.dynamicVariableValue || "None"}
-                  </span>
-                </div>
-              </div>
-            </div>
-          `;
-          container.appendChild(variablesSection);
-
-          // Model parameters section
-          const parametersSection = document.createElement("div");
-          parametersSection.innerHTML = `
-            <div style="padding: 15px; border: 1px solid #ddd; border-radius: 4px; background-color: #f9f9f9;">
-              <h4 style="margin: 0 0 10px 0; color: #555;">Model Parameters</h4>
-              <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
-                <div><strong>Temperature:</strong> <span style="color: #0066cc;">${
-                  extensionData.temperature
-                }</span></div>
-                <div><strong>Top K:</strong> <span style="color: #0066cc;">${
-                  extensionData.topK
-                }</span></div>
-                <div><strong>Top P:</strong> <span style="color: #0066cc;">${
-                  extensionData.topP
-                }</span></div>
-                <div><strong>Max Tokens:</strong> <span style="color: #0066cc;">${
-                  extensionData.maxTokens
-                }</span></div>
-              </div>
-              ${
-                extensionData.stopTokens
-                  ? `
-                <div style="margin-top: 10px;">
-                  <strong>Stop Tokens:</strong> <span style="color: #0066cc;">${extensionData.stopTokens}</span>
-                </div>
-              `
-                  : ""
-              }
-            </div>
-          `;
-          container.appendChild(parametersSection);
 
           // Response placeholder
           const responseSection = document.createElement("div");
           responseSection.innerHTML = `
             <div style="padding: 15px; border: 1px solid #ddd; border-radius: 4px; background-color: #f9f9f9;">
-              <h4 style="margin: 0 0 10px 0; color: #555;">LLM Response</h4>
-              <div style="background: #fff; padding: 20px; border-radius: 3px; border: 1px solid #ddd; min-height: 100px; display: flex; align-items: center; justify-content: center; font-style: italic; color: #666;">
+              <div style="background: #fff; padding: 20px; border-radius: 3px; border: 1px solid #ddd; min-height: 250px; display: flex; align-items: center; justify-content: center; font-style: italic; color: #666;">
                 🤖 Natural language response will appear here once connected to LLM service
               </div>
             </div>

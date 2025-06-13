@@ -145,26 +145,6 @@ export default function ext(galaxy) {
                 },
               },
             },
-
-            // Advanced Options Section (Collapsible)
-            advancedOptions: {
-              type: "items",
-              label: "Advanced Options",
-              items: {
-                masterItems: {
-                  type: "string",
-                  component: "dropdown",
-                  label: "Master Items",
-                  ref: "props.masterItems",
-                  options: [
-                    { value: "", label: "None" },
-                    { value: "option1", label: "Master Item 1" },
-                    { value: "option2", label: "Master Item 2" },
-                  ],
-                  defaultValue: "",
-                },
-              },
-            },
           },
         },
 
