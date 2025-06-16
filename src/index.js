@@ -232,29 +232,6 @@ export default function supernova() {
                     ">${accountInfo}</p>
                   </div>
                 </div>
-                
-                <!-- Advanced Mode Toggle -->
-                <button id="advancedToggle" style="
-                  background: ${props.showAdvancedUI ? "#667eea" : "#f3f4f6"};
-                  color: ${props.showAdvancedUI ? "white" : "#6b7280"};
-                  border: 1px solid ${
-                    props.showAdvancedUI ? "#667eea" : "#d1d5db"
-                  };
-                  border-radius: ${Math.floor(
-                    (props.borderRadius || 8) * 0.6
-                  )}px;
-                  padding: 6px 10px;
-                  cursor: pointer;
-                  font-size: 11px;
-                  font-weight: 500;
-                  transition: all 0.2s ease;
-                  display: flex;
-                  align-items: center;
-                  gap: 4px;
-                ">
-                  <span style="font-size: 12px;">💬</span>
-                  ${props.showAdvancedUI ? "Simple" : "Chat"}
-                </button>
               </div>
           `;
 
