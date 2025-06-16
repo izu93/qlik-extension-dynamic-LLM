@@ -20,10 +20,8 @@ export default {
   // Custom properties for LLM configuration
   props: {
     connectionName: "Churn Analytics:Anthropic_Claude35Sonnet_ChurnML", // Default connection
-    systemPrompt:
-      "You are an expert data scientist specializing in customer churn analysis and SaaS business intelligence. Focus on translating machine learning insights into actionable business recommendations for non-technical stakeholders.", // System-level instructions for the LLM
-    userPrompt:
-      "Based on the SHAP values provided, which features have the strongest impact on customer churn? Explain in business terms what this means. 3 bullet points for this account {AccountID}", // User's query/prompt
+    systemPrompt: "", // System-level instructions for the LLM - must be configured by developer
+    userPrompt: "", // User's query/prompt - must be configured by developer
     temperature: 0.7, // Controls randomness in responses (0-1)
     topK: 250, // Limits vocabulary to top K tokens
     topP: 1, // Nucleus sampling parameter

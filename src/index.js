@@ -40,6 +40,11 @@ export default function supernova() {
             "You are a customer success manager specializing in risk assessment and proactive customer management using churn prediction data.",
           user: "Based on the customer data including AccountID, churn predictions (Churned_predicted, Churned_no, Churned_yes), and customer attributes (PlanType, BaseFee, ServiceRating, NumberOfPenalties, ServiceTickets, HasRenewed, CurrentPeriodUsage, PriorPeriodUsage, AdditionalFeatureSpend, Promotion, StartWeek), identify high-risk customer profiles. Focus on customers with high Churned_yes probabilities and specific combinations of risk factors. Recommend specific intervention strategies for different risk segments.",
         },
+        customer_trends: {
+          system:
+            "You are a business intelligence analyst specializing in customer behavior analysis and trend identification for SaaS businesses.",
+          user: "Analyze the customer data to identify key trends and patterns. Look at customer behavior over time, usage patterns, billing trends, service interactions, and renewal patterns. Identify emerging trends that could indicate opportunities for growth or areas of concern. Provide insights on customer segments, seasonal patterns, and recommendations for business strategy.",
+        },
       });
 
       // Simplified dynamic field replacement function
@@ -169,9 +174,11 @@ export default function supernova() {
             color: ${props.responseTextColor || "#212529"};
             border: 1px solid ${props.responseBorderColor || "#e9ecef"};
             border-radius: ${props.borderRadius || 8}px;
-            padding: ${props.padding || 20}px;
-            font-size: ${props.fontSize || 15}px;
+            padding: 16px;
+            font-size: ${props.fontSize || 14}px;
             text-align: ${props.textAlignment || "left"};
+            line-height: 1.5;
+            margin: 0;
           `;
 
           const buttonStyle = `
@@ -180,10 +187,12 @@ export default function supernova() {
             } 0%, ${props.buttonBackgroundColor || "#764ba2"} 100%);
             color: ${props.buttonTextColor || "#ffffff"};
             border-radius: ${props.borderRadius || 8}px;
-            padding: ${Math.floor((props.padding || 20) * 0.8)}px ${
-            (props.padding || 20) + 4
-          }px;
-            font-size: ${(props.fontSize || 15) + 1}px;
+            padding: 12px 20px;
+            font-size: ${(props.fontSize || 14) + 1}px;
+            font-weight: 600;
+            border: none;
+            cursor: pointer;
+            transition: all 0.2s ease;
           `;
 
           // Start building HTML content with custom styling
@@ -201,23 +210,23 @@ export default function supernova() {
                 display: flex;
                 align-items: center;
                 justify-content: space-between;
-                margin-bottom: 24px;
-                padding-bottom: 16px;
+                margin-bottom: 16px;
+                padding-bottom: 12px;
                 border-bottom: 1px solid #e0e0e0;
                 ${headerStyle}
               ">
                 <div style="display: flex; align-items: center;">
-                  <span style="font-size: 28px; margin-right: 12px;">🤖</span>
+                  <span style="font-size: 24px; margin-right: 10px;">🤖</span>
                   <div>
                     <h2 style="
                       margin: 0;
-                      font-size: 24px;
+                      font-size: 20px;
                       font-weight: 600;
                       color: inherit;
                     ">AI Analysis Results</h2>
                     <p style="
-                      margin: 4px 0 0 0;
-                      font-size: 14px;
+                      margin: 2px 0 0 0;
+                      font-size: 13px;
                       opacity: 0.7;
                       color: inherit;
                     ">${accountInfo}</p>
@@ -234,17 +243,17 @@ export default function supernova() {
                   border-radius: ${Math.floor(
                     (props.borderRadius || 8) * 0.6
                   )}px;
-                  padding: 8px 12px;
+                  padding: 6px 10px;
                   cursor: pointer;
-                  font-size: 12px;
+                  font-size: 11px;
                   font-weight: 500;
                   transition: all 0.2s ease;
                   display: flex;
                   align-items: center;
-                  gap: 6px;
+                  gap: 4px;
                 ">
-                  <span style="font-size: 14px;">💬</span>
-                  ${props.showAdvancedUI ? "Simple Mode" : "Chat Mode"}
+                  <span style="font-size: 12px;">💬</span>
+                  ${props.showAdvancedUI ? "Simple" : "Chat"}
                 </button>
               </div>
           `;
@@ -289,123 +298,151 @@ export default function supernova() {
               <!-- Quick Prompt Buttons -->
               <div style="
                 display: flex;
-                flex-direction: column;
+                flex-wrap: wrap;
                 gap: 8px;
-                margin-bottom: 20px;
+                margin-bottom: 16px;
+                justify-content: flex-start;
               ">
                 <button class="prompt-btn" data-template="shap_analysis" style="
-                  padding: 12px 16px;
+                  padding: 12px 20px;
                   background: #ffffff;
                   color: #374151;
-                  border: 1px solid #d1d5db;
-                  border-radius: 8px;
+                  border: 1.5px solid #d1d5db;
+                  border-radius: 25px;
                   cursor: pointer;
                   font-size: 14px;
-                  text-align: left;
+                  text-align: center;
                   transition: all 0.2s ease;
                   font-weight: 500;
+                  white-space: nowrap;
+                  box-shadow: 0 1px 3px rgba(0,0,0,0.1);
                 ">
                   What features impact churn the most?
                 </button>
                 
                 <button class="prompt-btn" data-template="customer_risk_profile" style="
-                  padding: 12px 16px;
+                  padding: 12px 20px;
                   background: #ffffff;
                   color: #374151;
-                  border: 1px solid #d1d5db;
-                  border-radius: 8px;
+                  border: 1.5px solid #d1d5db;
+                  border-radius: 25px;
                   cursor: pointer;
                   font-size: 14px;
-                  text-align: left;
+                  text-align: center;
                   transition: all 0.2s ease;
                   font-weight: 500;
+                  white-space: nowrap;
+                  box-shadow: 0 1px 3px rgba(0,0,0,0.1);
                 ">
                   Which customers are at highest risk?
                 </button>
+                
+                <button class="prompt-btn" data-template="customer_trends" style="
+                  padding: 12px 20px;
+                  background: #ffffff;
+                  color: #374151;
+                  border: 1.5px solid #d1d5db;
+                  border-radius: 25px;
+                  cursor: pointer;
+                  font-size: 14px;
+                  text-align: center;
+                  transition: all 0.2s ease;
+                  font-weight: 500;
+                  white-space: nowrap;
+                  box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+                ">
+                  Analyze customer trends
+                </button>
               </div>
               
-              <!-- Response display area -->
+              <!-- Chat Messages Container -->
               <div id="llmResponse" style="
                 flex: 1;
                 overflow-y: auto;
-                padding: 20px;
-                background: #f8f9fa;
-                border: 1px solid #e9ecef;
-                border-radius: 8px;
-                font-size: 15px;
-                line-height: 1.6;
+                padding: 16px;
+                background: #f8f9fc;
+                border-radius: 12px;
+                font-size: 14px;
+                line-height: 1.5;
                 color: #212529;
-                position: relative;
-                margin-bottom: 20px;
-                min-height: 200px;
+                margin-bottom: 16px;
+                min-height: 180px;
+                max-height: 350px;
+                border: 1px solid #e9ecf3;
               ">
                 <!-- Initial AI message -->
                 <div style="
-                  background: #ffffff;
-                  border: 1px solid #e5e7eb;
-                  border-radius: 12px;
-                  padding: 20px;
-                  color: #374151;
-                  text-align: left;
-                  line-height: 1.6;
+                  display: flex;
+                  justify-content: flex-start;
+                  margin-bottom: 12px;
                 ">
-                  Hi! I'm your personal churn analysis AI coach. I can analyze your customer data, identify risk factors, and help you develop retention strategies. What would you like to work on today?
+                  <div style="
+                    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                    color: white;
+                    border-radius: 18px 18px 18px 4px;
+                    padding: 12px 16px;
+                    max-width: 85%;
+                    font-size: 13px;
+                    line-height: 1.4;
+                    box-shadow: 0 2px 8px rgba(102, 126, 234, 0.2);
+                  ">
+                    <div style="font-weight: 600; margin-bottom: 4px; opacity: 0.9;">🤖 AI Assistant</div>
+                    💡 Ready to analyze your customer data! Use the suggestions above or ask me anything below.
+                  </div>
                 </div>
               </div>
               
               <!-- Chat input area -->
               <div style="
                 display: flex;
-                gap: 12px;
+                gap: 10px;
                 align-items: flex-end;
+                background: white;
+                padding: 12px;
+                border-radius: 25px;
+                border: 1px solid #e9ecf3;
+                box-shadow: 0 2px 12px rgba(0,0,0,0.08);
               ">
-                <textarea id="chatInput" placeholder="Ask about your customer data or use {fieldname} for dynamic values..." style="
+                <textarea id="chatInput" placeholder="Type your question here..." style="
                   flex: 1;
-                  padding: 16px;
-                  border: 1px solid #d1d5db;
-                  border-radius: 12px;
-                  font-size: 15px;
+                  padding: 12px 16px;
+                  border: none;
+                  border-radius: 20px;
+                  font-size: 14px;
                   font-family: inherit;
                   resize: none;
-                  min-height: 52px;
-                  max-height: 120px;
-                  background: #ffffff;
+                  min-height: 20px;
+                  max-height: 80px;
+                  background: #f8f9fc;
                   color: #374151;
                   outline: none;
-                  line-height: 1.5;
+                  line-height: 1.4;
                 "></textarea>
                 
                 <button id="generateButton" style="
-                  padding: 16px 24px;
-                  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-                  color: white;
-                  border: none;
-                  border-radius: 12px;
-                  cursor: pointer;
-                  font-size: 15px;
-                  font-weight: 600;
-                  transition: all 0.3s ease;
-                  box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
-                  min-width: 120px;
+                  ${buttonStyle}
+                  min-width: 100px;
+                  border-radius: 20px;
                   display: flex;
                   align-items: center;
                   justify-content: center;
+                  font-size: 13px;
+                  padding: 12px 20px;
+                  box-shadow: 0 2px 8px rgba(102, 126, 234, 0.3);
                 ">
-                  <span style="margin-right: 8px;">✨</span>
-                  Generate
+                  ✨ Generate
                 </button>
                 
                 <button id="clearButton" style="
-                  padding: 16px 20px;
-                  background: #ffffff;
-                  color: #6b7280;
-                  border: 1px solid #d1d5db;
-                  border-radius: 12px;
+                  padding: 12px 16px;
+                  background: #f1f3f4;
+                  color: #5f6368;
+                  border: none;
+                  border-radius: 20px;
                   cursor: pointer;
-                  font-size: 15px;
+                  font-size: 13px;
                   font-weight: 500;
                   transition: all 0.2s ease;
-                  min-width: 80px;
                 ">
                   Clear
                 </button>
@@ -419,41 +456,44 @@ export default function supernova() {
                 flex: 1;
                 display: flex;
                 flex-direction: column;
-                gap: 20px;
+                gap: 12px;
               ">
                 <!-- Main message area -->
                 <div id="llmResponse" style="
                   flex: 1;
                   overflow-y: auto;
                   ${responseStyle}
-                  text-align: center;
-                  display: flex;
-                  align-items: center;
-                  justify-content: center;
-                  min-height: 300px;
+                  text-align: left;
+                  min-height: 200px;
+                  max-height: 400px;
                 ">
-                  <div>
-                    <div style="font-size: 48px; margin-bottom: 16px; opacity: 0.3;">📊</div>
-                    <h3 style="margin: 0 0 8px 0; color: inherit; opacity: 0.8;">Ready for Analysis</h3>
-                    <p style="margin: 0; opacity: 0.6;">Configure your data and prompts, then generate AI insights</p>
+                  <div style="
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    height: 100%;
+                    text-align: center;
+                    color: #6c757d;
+                  ">
+                    <div>
+                      <div style="font-size: 32px; margin-bottom: 8px; opacity: 0.3;">📊</div>
+                      <h3 style="margin: 0 0 4px 0; color: inherit; opacity: 0.8; font-size: 16px;">Ready for Analysis</h3>
+                      <p style="margin: 0; opacity: 0.6; font-size: 12px;">Click Generate to start AI analysis</p>
+                    </div>
                   </div>
                 </div>
                 
                 <!-- Generate button -->
-                <div style="text-align: center; margin-top: 20px;">
+                <div style="text-align: center;">
                   <button id="generateButton" style="
                     ${buttonStyle}
-                    cursor: pointer;
-                    font-weight: 600;
-                    transition: all 0.3s ease;
-                    box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
-                    min-width: 160px;
+                    box-shadow: 0 2px 8px rgba(102, 126, 234, 0.3);
+                    min-width: 140px;
                     display: inline-flex;
                     align-items: center;
                     justify-content: center;
-                    border: none;
                   ">
-                    <span style="margin-right: 8px;">✨</span>
+                    <span style="margin-right: 6px;">✨</span>
                     Generate Analysis
                   </button>
                 </div>
@@ -471,21 +511,27 @@ export default function supernova() {
           const style = document.createElement("style");
           style.textContent = `
             .prompt-btn:hover {
-              background: #f3f4f6 !important;
-              border-color: #9ca3af !important;
+              background: #f8f9fc !important;
+              border-color: #667eea !important;
               transform: translateY(-1px);
+              box-shadow: 0 2px 8px rgba(102, 126, 234, 0.15) !important;
+            }
+            .prompt-btn:active {
+              transform: translateY(0);
+              background: #667eea !important;
+              color: white !important;
             }
             #chatInput:focus {
-              border-color: #667eea !important;
-              box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1) !important;
+              background: #ffffff !important;
+              box-shadow: 0 0 0 2px rgba(102, 126, 234, 0.2) !important;
             }
             #generateButton:hover {
-              transform: translateY(-2px);
-              box-shadow: 0 6px 20px rgba(102, 126, 234, 0.6) !important;
+              transform: translateY(-1px);
+              box-shadow: 0 4px 12px rgba(102, 126, 234, 0.5) !important;
             }
             #clearButton:hover {
-              background: #f9fafb !important;
-              border-color: #9ca3af !important;
+              background: #e8eaed !important;
+              transform: translateY(-1px);
             }
             #advancedToggle:hover {
               transform: translateY(-1px);
@@ -493,6 +539,21 @@ export default function supernova() {
             @keyframes spin {
               0% { transform: rotate(0deg); }
               100% { transform: rotate(360deg); }
+            }
+            /* Scrollbar styling for chat */
+            #llmResponse::-webkit-scrollbar {
+              width: 6px;
+            }
+            #llmResponse::-webkit-scrollbar-track {
+              background: #f1f3f4;
+              border-radius: 3px;
+            }
+            #llmResponse::-webkit-scrollbar-thumb {
+              background: #c1c8cd;
+              border-radius: 3px;
+            }
+            #llmResponse::-webkit-scrollbar-thumb:hover {
+              background: #a8b3ba;
             }
           `;
           document.head.appendChild(style);
@@ -527,9 +588,19 @@ export default function supernova() {
           promptButtons.forEach((btn) => {
             btn.onclick = () => {
               const templateType = btn.dataset.template;
-              if (chatInput) {
-                chatInput.value = btn.textContent;
+              if (chatInput && templateType && templates[templateType]) {
+                // Use the template's user prompt instead of button text
+                if (templateType === "custom") {
+                  chatInput.value = btn.textContent.trim();
+                } else {
+                  chatInput.value = templates[templateType].user;
+                }
                 chatInput.focus();
+
+                // Auto-resize the textarea
+                chatInput.style.height = "auto";
+                chatInput.style.height =
+                  Math.min(chatInput.scrollHeight, 80) + "px";
               }
             };
           });
@@ -541,15 +612,23 @@ export default function supernova() {
                 // Reset to chat welcome message
                 responseDiv.innerHTML = `
                   <div style="
-                    background: #ffffff;
-                    border: 1px solid #e5e7eb;
-                    border-radius: 12px;
-                    padding: 20px;
-                    color: #374151;
-                    text-align: left;
-                    line-height: 1.6;
+                    display: flex;
+                    justify-content: flex-start;
+                    margin-bottom: 12px;
                   ">
-                    Hi! I'm your personal churn analysis AI coach. I can analyze your customer data, identify risk factors, and help you develop retention strategies. What would you like to work on today?
+                    <div style="
+                      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                      color: white;
+                      border-radius: 18px 18px 18px 4px;
+                      padding: 12px 16px;
+                      max-width: 85%;
+                      font-size: 13px;
+                      line-height: 1.4;
+                      box-shadow: 0 2px 8px rgba(102, 126, 234, 0.2);
+                    ">
+                      <div style="font-weight: 600; margin-bottom: 4px; opacity: 0.9;">🤖 AI Assistant</div>
+                      💡 Ready to analyze your customer data! Use the quick actions above or ask me anything below.
+                    </div>
                   </div>
                 `;
                 if (chatInput) {
@@ -559,10 +638,19 @@ export default function supernova() {
               } else {
                 // Reset to simple welcome message
                 responseDiv.innerHTML = `
-                  <div>
-                    <div style="font-size: 48px; margin-bottom: 16px; opacity: 0.3;">📊</div>
-                    <h3 style="margin: 0 0 8px 0; color: #495057;">Ready for Analysis</h3>
-                    <p style="margin: 0; color: #6c757d;">Pick an AccountID to view the LLM analysis</p>
+                  <div style="
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    height: 100%;
+                    text-align: center;
+                    color: #6c757d;
+                  ">
+                    <div>
+                      <div style="font-size: 32px; margin-bottom: 8px; opacity: 0.3;">📊</div>
+                      <h3 style="margin: 0 0 4px 0; color: inherit; opacity: 0.8; font-size: 16px;">Ready for Analysis</h3>
+                      <p style="margin: 0; opacity: 0.6; font-size: 12px;">Click Generate to start AI analysis</p>
+                    </div>
                   </div>
                 `;
               }
@@ -582,32 +670,69 @@ export default function supernova() {
 
               // Show loading state
               if (props.showAdvancedUI) {
-                // Clear chat and show loading
-                responseDiv.innerHTML = `
-                  <div id="loadingMsg" style="
-                    background: #f3f4f6;
-                    border: 1px solid #e5e7eb;
-                    border-radius: 12px;
-                    padding: 20px;
-                    color: #6b7280;
-                    text-align: left;
-                    line-height: 1.6;
+                // Add user message first
+                const userMessage =
+                  chatInput && chatInput.value.trim()
+                    ? chatInput.value.trim()
+                    : "Generate analysis";
+
+                responseDiv.innerHTML += `
+                  <!-- User message -->
+                  <div style="
+                    display: flex;
+                    justify-content: flex-end;
+                    margin-bottom: 12px;
                   ">
-                    <div style="font-weight: 600; margin-bottom: 8px; color: #1f2937;">AI Assistant</div>
-                    <div style="display: flex; align-items: center;">
-                      <div style="
-                        width: 16px;
-                        height: 16px;
-                        border: 2px solid #e5e7eb;
-                        border-top: 2px solid #667eea;
-                        border-radius: 50%;
-                        animation: spin 1s linear infinite;
-                        margin-right: 12px;
-                      "></div>
-                      Analyzing your customer data...
+                    <div style="
+                      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                      color: white;
+                      border-radius: 18px 18px 4px 18px;
+                      padding: 10px 16px;
+                      max-width: 75%;
+                      font-size: 13px;
+                      line-height: 1.4;
+                      box-shadow: 0 2px 8px rgba(102, 126, 234, 0.2);
+                    ">
+                      ${userMessage}
+                    </div>
+                  </div>
+                  
+                  <!-- Loading message -->
+                  <div id="loadingMsg" style="
+                    display: flex;
+                    justify-content: flex-start;
+                    margin-bottom: 12px;
+                  ">
+                    <div style="
+                      background: white;
+                      color: #6b7280;
+                      border-radius: 18px 18px 18px 4px;
+                      padding: 12px 16px;
+                      max-width: 85%;
+                      font-size: 13px;
+                      line-height: 1.4;
+                      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+                      border: 1px solid #e9ecf3;
+                    ">
+                      <div style="font-weight: 600; margin-bottom: 6px; color: #667eea; font-size: 12px;">🤖 AI Assistant</div>
+                      <div style="display: flex; align-items: center;">
+                        <div style="
+                          width: 12px;
+                          height: 12px;
+                          border: 2px solid #e5e7eb;
+                          border-top: 2px solid #667eea;
+                          border-radius: 50%;
+                          animation: spin 1s linear infinite;
+                          margin-right: 8px;
+                        "></div>
+                        Analyzing your data...
+                      </div>
                     </div>
                   </div>
                 `;
+
+                // Scroll to bottom
+                responseDiv.scrollTop = responseDiv.scrollHeight;
               } else {
                 // Simple loading
                 responseDiv.innerHTML = `
@@ -732,42 +857,69 @@ export default function supernova() {
 
                 // Display response based on mode
                 if (props.showAdvancedUI) {
-                  // Chat-style response
-                  responseDiv.innerHTML = `
+                  // Chat-style response with user message first
+                  const userMessage =
+                    chatInput && chatInput.value.trim()
+                      ? chatInput.value.trim()
+                      : "Generate analysis";
+
+                  responseDiv.innerHTML += `
+                    <!-- User message -->
                     <div style="
-                      background: #ffffff;
-                      border: 1px solid #e5e7eb;
-                      border-radius: 12px;
-                      padding: 20px;
-                      color: #374151;
-                      text-align: left;
-                      line-height: 1.6;
+                      display: flex;
+                      justify-content: flex-end;
+                      margin-bottom: 12px;
                     ">
-                      <div style="font-weight: 600; margin-bottom: 8px; color: #1f2937;">AI Assistant</div>
-                      <div style="white-space: pre-wrap; word-wrap: break-word;">
-                        ${responseText.replace(/\n/g, "<br>")}
+                      <div style="
+                        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                        color: white;
+                        border-radius: 18px 18px 4px 18px;
+                        padding: 10px 16px;
+                        max-width: 75%;
+                        font-size: 13px;
+                        line-height: 1.4;
+                        box-shadow: 0 2px 8px rgba(102, 126, 234, 0.2);
+                      ">
+                        ${userMessage}
+                      </div>
+                    </div>
+                    
+                    <!-- AI response -->
+                    <div style="
+                      display: flex;
+                      justify-content: flex-start;
+                      margin-bottom: 12px;
+                    ">
+                      <div style="
+                        background: white;
+                        color: #374151;
+                        border-radius: 18px 18px 18px 4px;
+                        padding: 12px 16px;
+                        max-width: 85%;
+                        font-size: 13px;
+                        line-height: 1.4;
+                        box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+                        border: 1px solid #e9ecf3;
+                      ">
+                        <div style="font-weight: 600; margin-bottom: 6px; color: #667eea; font-size: 12px;">🤖 AI Assistant</div>
+                        <div style="white-space: pre-wrap; word-wrap: break-word;">
+                          ${responseText.replace(/\n/g, "<br>")}
+                        </div>
                       </div>
                     </div>
                   `;
 
-                  // Clear input
+                  // Clear input and scroll to bottom
                   if (chatInput) {
                     chatInput.value = "";
                     chatInput.style.height = "auto";
                   }
+                  responseDiv.scrollTop = responseDiv.scrollHeight;
                 } else {
                   // Simple response with custom styling
                   responseDiv.innerHTML = `
-                    <div style="
-                      ${responseStyle}
-                      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-                      max-width: 800px;
-                      margin: 0 auto;
-                      line-height: 1.6;
-                    ">
-                      <div style="white-space: pre-wrap; word-wrap: break-word;">
-                        ${responseText.replace(/\n/g, "<br>")}
-                      </div>
+                    <div style="white-space: pre-wrap; word-wrap: break-word; line-height: 1.5;">
+                      ${responseText.replace(/\n/g, "<br>")}
                     </div>
                   `;
                 }
@@ -779,13 +931,14 @@ export default function supernova() {
                   <div style="
                     background: #fef2f2;
                     border: 1px solid #fca5a5;
-                    border-radius: 12px;
-                    padding: 20px;
+                    border-radius: 8px;
+                    padding: 12px;
                     color: #dc2626;
                     text-align: left;
-                    line-height: 1.6;
+                    line-height: 1.5;
+                    font-size: 13px;
                   ">
-                    <div style="font-weight: 600; margin-bottom: 8px;">Error</div>
+                    <div style="font-weight: 600; margin-bottom: 4px;">⚠️ Error</div>
                     ${err.message || "Failed to generate response"}
                   </div>
                 `;
@@ -797,10 +950,18 @@ export default function supernova() {
                 generateButton.style.background =
                   "linear-gradient(135deg, #667eea 0%, #764ba2 100%)";
                 generateButton.style.boxShadow =
-                  "0 4px 15px rgba(102, 126, 234, 0.4)";
+                  "0 2px 8px rgba(102, 126, 234, 0.3)";
                 generateButton.innerHTML = props.showAdvancedUI
-                  ? '<span style="margin-right: 8px;">✨</span>Generate'
-                  : '<span style="margin-right: 8px;">✨</span>Generate Analysis';
+                  ? '<span style="margin-right: 6px;">✨</span>Generate'
+                  : '<span style="margin-right: 6px;">✨</span>Generate Analysis';
+
+                // Remove loading message if in chat mode
+                if (props.showAdvancedUI) {
+                  const loadingMsg = responseDiv.querySelector("#loadingMsg");
+                  if (loadingMsg) {
+                    loadingMsg.remove();
+                  }
+                }
               }
             };
           }
