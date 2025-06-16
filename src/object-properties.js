@@ -19,15 +19,28 @@ export default {
   },
   // Custom properties for LLM configuration
   props: {
-    connectionName: "Churn Analytics:Anthropic_Claude35Sonnet_ChurnML", // Default connection
-    systemPrompt: "", // System-level instructions for the LLM - must be configured by developer
-    userPrompt: "", // User's query/prompt - must be configured by developer
+    // Connection type selector
+    connectionType: "claude", // "claude" or "qlik-answers"
+
+    // Claude-specific properties
+    connectionName: "Churn Analytics:Anthropic_Claude35Sonnet_ChurnML", // Claude connection name
+    systemPrompt: "", // System-level instructions for Claude
+    userPrompt: "", // User's query/prompt for Claude
     temperature: 0.7, // Controls randomness in responses (0-1)
     topK: 250, // Limits vocabulary to top K tokens
     topP: 1, // Nucleus sampling parameter
     maxTokens: 1000, // Maximum response length
+
+    // Qlik Answers specific properties
+    qlikAnswersMode: "insight", // Analysis type for Qlik Answers
+    naturalLanguageQuery: "What are the key insights from this customer data?", // Natural language query
+    enableNaturalLanguage: true, // Enable natural language processing
+    includeChartSuggestions: true, // Include chart suggestions in responses
+    enableFollowUpQuestions: true, // Enable follow-up questions
+
     // Advanced UI toggle
     showAdvancedUI: false, // Show chat interface and template features
+
     // Styling properties
     headerBackgroundColor: "#ffffff",
     headerTextColor: "#1a1a1a",

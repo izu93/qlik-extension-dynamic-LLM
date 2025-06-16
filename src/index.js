@@ -232,6 +232,9 @@ export default function supernova() {
                     ">${accountInfo}</p>
                   </div>
                 </div>
+                
+                <!-- Advanced Mode Toggle -->
+             
               </div>
           `;
 

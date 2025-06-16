@@ -13,12 +13,54 @@ export default {
         type: "items",
         label: "LLM Configuration",
         items: {
-          // Connection name input field
+          // Version identifier for debugging
+          extensionVersion: {
+            type: "string",
+            component: "text",
+            label: "Extension Version",
+            show: "v2.0 - Dropdown Update",
+          },
+          // Connection type dropdown field
+          connectionType: {
+            type: "string",
+            component: "dropdown",
+            label: "AI Service",
+            ref: "props.connectionType",
+            defaultValue: "claude",
+            options: [
+              {
+                value: "claude",
+                label: "🤖 Claude 3.5 Sonnet (External Connection)",
+              },
+              {
+                value: "qlik-answers",
+                label: "✨ Qlik Answers (Built-in AI)",
+              },
+            ],
+          },
+          // Claude connection name (only for Claude)
           connectionName: {
             type: "string",
-            label: "Connection Name",
+            label: "Claude Connection Name",
             ref: "props.connectionName",
             defaultValue: "Churn Analytics:Anthropic_Claude35Sonnet_ChurnML",
+            show: function (data) {
+              return data.props?.connectionType === "claude";
+            },
+          },
+          // Connection info display (read-only helper text)
+          connectionInfo: {
+            type: "string",
+            component: "text",
+            label: "Service Info",
+            show: function (data) {
+              const connectionType = data.props?.connectionType || "claude";
+              if (connectionType === "qlik-answers") {
+                return "ℹ️ Uses Qlik's built-in AI assistant. No external connection required - works directly with your Qlik Cloud environment.";
+              } else {
+                return "ℹ️ Uses your external Claude SSE connection configured in QMC for advanced churn prediction analysis.";
+              }
+            },
           },
           // System prompt textarea - large character limit
           systemPrompt: {
@@ -27,7 +69,11 @@ export default {
             label: "System Prompt",
             ref: "props.systemPrompt",
             defaultValue: "", // No default value - developer must configure
-            show: true,
+            show: function (data) {
+              // Only show for Claude
+              const connectionType = data.props?.connectionType || "claude";
+              return connectionType === "claude";
+            },
             maxlength: 5000, // Large character limit
           },
           // User prompt textarea - large character limit
@@ -37,8 +83,57 @@ export default {
             label: "User Prompt",
             ref: "props.userPrompt",
             defaultValue: "", // No default value - developer must configure
-            show: true,
+            show: function (data) {
+              // Only show for Claude
+              const connectionType = data.props?.connectionType || "claude";
+              return connectionType === "claude";
+            },
             maxlength: 5000, // Large character limit
+          },
+          // Qlik Answers specific settings
+          qlikAnswersMode: {
+            type: "string",
+            component: "dropdown",
+            label: "Analysis Type",
+            ref: "props.qlikAnswersMode",
+            defaultValue: "insight",
+            show: function (data) {
+              // Only show for Qlik Answers
+              const connectionType = data.props?.connectionType || "claude";
+              return connectionType === "qlik-answers";
+            },
+            options: [
+              {
+                value: "insight",
+                label: "📊 Generate Insights - Discover patterns and trends",
+              },
+              {
+                value: "question",
+                label: "❓ Answer Questions - Get specific answers",
+              },
+              {
+                value: "narrative",
+                label: "📝 Create Narrative - Generate story from data",
+              },
+              {
+                value: "comparison",
+                label: "⚖️ Compare Data - Analyze differences",
+              },
+            ],
+          },
+          // Natural language input for Qlik Answers
+          naturalLanguageQuery: {
+            type: "string",
+            component: "textarea",
+            label: "Natural Language Query",
+            ref: "props.naturalLanguageQuery",
+            defaultValue: "What are the key insights from this customer data?",
+            show: function (data) {
+              // Only show for Qlik Answers
+              const connectionType = data.props?.connectionType || "claude";
+              return connectionType === "qlik-answers";
+            },
+            maxlength: 1000,
           },
           // Temperature slider control
           temperature: {
@@ -50,6 +145,11 @@ export default {
             max: 1,
             step: 0.1,
             defaultValue: 0.7,
+            show: function (data) {
+              // Only show for Claude
+              const connectionType = data.props?.connectionType || "claude";
+              return connectionType === "claude";
+            },
           },
           // Top K parameter input
           topK: {
@@ -59,6 +159,11 @@ export default {
             defaultValue: 250,
             min: 1,
             max: 500,
+            show: function (data) {
+              // Only show for Claude
+              const connectionType = data.props?.connectionType || "claude";
+              return connectionType === "claude";
+            },
           },
           // Top P parameter input
           topP: {
@@ -68,6 +173,11 @@ export default {
             defaultValue: 1,
             min: 0,
             max: 1,
+            show: function (data) {
+              // Only show for Claude
+              const connectionType = data.props?.connectionType || "claude";
+              return connectionType === "claude";
+            },
           },
           // Max tokens input
           maxTokens: {
@@ -77,6 +187,11 @@ export default {
             defaultValue: 1000,
             min: 100,
             max: 4000,
+            show: function (data) {
+              // Only show for Claude
+              const connectionType = data.props?.connectionType || "claude";
+              return connectionType === "claude";
+            },
           },
         },
       },
@@ -91,6 +206,40 @@ export default {
             label: "Enable Advanced Chat Interface",
             ref: "props.showAdvancedUI",
             defaultValue: false,
+          },
+          // Qlik Answers specific advanced options
+          enableNaturalLanguage: {
+            type: "boolean",
+            label: "Enable Natural Language Processing",
+            ref: "props.enableNaturalLanguage",
+            defaultValue: true,
+            show: function (data) {
+              // Only show for Qlik Answers
+              const connectionType = data.props?.connectionType || "claude";
+              return connectionType === "qlik-answers";
+            },
+          },
+          includeChartSuggestions: {
+            type: "boolean",
+            label: "Include Chart Suggestions",
+            ref: "props.includeChartSuggestions",
+            defaultValue: true,
+            show: function (data) {
+              // Only show for Qlik Answers
+              const connectionType = data.props?.connectionType || "claude";
+              return connectionType === "qlik-answers";
+            },
+          },
+          enableFollowUpQuestions: {
+            type: "boolean",
+            label: "Enable Follow-up Questions",
+            ref: "props.enableFollowUpQuestions",
+            defaultValue: true,
+            show: function (data) {
+              // Only show for Qlik Answers
+              const connectionType = data.props?.connectionType || "claude";
+              return connectionType === "qlik-answers";
+            },
           },
         },
       },
