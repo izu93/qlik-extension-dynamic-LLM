@@ -26,8 +26,7 @@ export default {
             component: "textarea",
             label: "System Prompt",
             ref: "props.systemPrompt",
-            defaultValue:
-              "You are an expert data scientist with knowledge of customer churn analysis. Analyze the provided customer data and provide actionable insights.",
+            defaultValue: "", // No default value - developer must configure
             show: true,
             maxlength: 5000, // Large character limit
           },
@@ -37,8 +36,7 @@ export default {
             component: "textarea",
             label: "User Prompt",
             ref: "props.userPrompt",
-            defaultValue:
-              "Based on the customer data provided, analyze the churn risk factors and provide business recommendations for retention strategies.",
+            defaultValue: "", // No default value - developer must configure
             show: true,
             maxlength: 5000, // Large character limit
           },

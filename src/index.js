@@ -250,8 +250,17 @@ export default function supernova() {
           `;
 
           // Check if required configuration is missing
-          if (!props.connectionName) {
+          if (
+            !props.connectionName ||
+            !props.systemPrompt ||
+            !props.userPrompt
+          ) {
             // Show configuration needed state
+            const missingItems = [];
+            if (!props.connectionName) missingItems.push("Connection Name");
+            if (!props.systemPrompt) missingItems.push("System Prompt");
+            if (!props.userPrompt) missingItems.push("User Prompt");
+
             content += `
               <div style="
                 flex: 1;
@@ -265,9 +274,12 @@ export default function supernova() {
                 color: #6c757d;
               ">
                 <div>
-                  <div style="font-size: 64px; margin-bottom: 16px; opacity: 0.3;">🤖</div>
+                  <div style="font-size: 64px; margin-bottom: 16px; opacity: 0.3;">⚙️</div>
                   <h3 style="margin: 0 0 8px 0; color: #495057;">Configuration Required</h3>
-                  <p style="margin: 0; font-size: 14px;">Please set up the connection in the properties panel</p>
+                  <p style="margin: 0; font-size: 14px;">Please configure the following in the properties panel:</p>
+                  <p style="margin: 8px 0 0 0; font-size: 14px; font-weight: 500; color: #dc3545;">
+                    ${missingItems.join(", ")}
+                  </p>
                 </div>
               </div>
             `;
