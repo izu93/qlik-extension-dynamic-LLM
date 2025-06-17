@@ -47,6 +47,69 @@ export default function supernova() {
         },
       });
 
+      // Single Account Validation Function
+      const validateSingleAccount = (layout) => {
+        if (!layout.qHyperCube?.qDataPages?.[0]?.qMatrix?.length) {
+          return {
+            valid: false,
+            message: "No data available",
+            accountCount: 0,
+          };
+        }
+
+        const matrix = layout.qHyperCube.qDataPages[0].qMatrix;
+        const dimensionInfo = layout.qHyperCube.qDimensionInfo || [];
+
+        if (dimensionInfo.length === 0) {
+          return {
+            valid: false,
+            message:
+              "No dimensions found. Please add dimensions to analyze data.",
+            accountCount: 0,
+          };
+        }
+
+        // Check if first dimension has multiple unique values (assuming it's the key field like AccountID)
+        const firstDimIndex = 0;
+        const uniqueValues = [
+          ...new Set(
+            matrix
+              .map(
+                (row) => row[firstDimIndex]?.qText || row[firstDimIndex]?.qNum
+              )
+              .filter((val) => val !== null && val !== undefined && val !== "")
+          ),
+        ];
+
+        const accountCount = uniqueValues.length;
+
+        if (accountCount === 0) {
+          return {
+            valid: false,
+            message: "No data records found",
+            accountCount: 0,
+          };
+        }
+
+        if (accountCount > 1) {
+          const firstDimName = dimensionInfo[0]?.qFallbackTitle || "Key field";
+          return {
+            valid: false,
+            message: `Multiple ${firstDimName} values selected (${accountCount}). Please filter to select exactly one record for AI analysis.`,
+            accountCount: accountCount,
+            values: uniqueValues.slice(0, 3),
+          };
+        }
+
+        return {
+          valid: true,
+          accountCount: 1,
+          selectedValue: uniqueValues[0],
+          fieldName: dimensionInfo[0]?.qFallbackTitle || "Record",
+          message: `Single record selected for analysis`,
+        };
+      };
+
       // Simplified dynamic field replacement function
       const replaceDynamicFields = (promptText, layout) => {
         if (!layout.qHyperCube?.qDataPages?.[0]?.qMatrix?.length) {
@@ -87,18 +150,29 @@ export default function supernova() {
             .join(", ");
         });
 
-        // Simple replacement without complex regex
+        // Simple replacement without complex regex - support both {field} and {{field}}
         let replacedPrompt = promptText;
 
         Object.keys(fieldMap).forEach((fieldName) => {
           const placeholder = `{${fieldName}}`;
+          const placeholderDouble = `{{${fieldName}}}`;
           const placeholderUpper = `{${fieldName.toUpperCase()}}`;
+          const placeholderDoubleUpper = `{{${fieldName.toUpperCase()}}}`;
+
           replacedPrompt = replacedPrompt.replace(
             new RegExp(placeholder, "g"),
             fieldMap[fieldName]
           );
           replacedPrompt = replacedPrompt.replace(
+            new RegExp(placeholderDouble, "g"),
+            fieldMap[fieldName]
+          );
+          replacedPrompt = replacedPrompt.replace(
             new RegExp(placeholderUpper, "g"),
+            fieldMap[fieldName]
+          );
+          replacedPrompt = replacedPrompt.replace(
+            new RegExp(placeholderDoubleUpper, "g"),
             fieldMap[fieldName]
           );
         });
@@ -232,9 +306,6 @@ export default function supernova() {
                     ">${accountInfo}</p>
                   </div>
                 </div>
-                
-                <!-- Advanced Mode Toggle -->
-             
               </div>
           `;
 
@@ -244,7 +315,7 @@ export default function supernova() {
             !props.systemPrompt ||
             !props.userPrompt
           ) {
-            // Show configuration needed state
+            // Show enhanced configuration needed state
             const missingItems = [];
             if (!props.connectionName) missingItems.push("Connection Name");
             if (!props.systemPrompt) missingItems.push("System Prompt");
@@ -265,10 +336,31 @@ export default function supernova() {
                 <div>
                   <div style="font-size: 64px; margin-bottom: 16px; opacity: 0.3;">⚙️</div>
                   <h3 style="margin: 0 0 8px 0; color: #495057;">Configuration Required</h3>
-                  <p style="margin: 0; font-size: 14px;">Please configure the following in the properties panel:</p>
-                  <p style="margin: 8px 0 0 0; font-size: 14px; font-weight: 500; color: #dc3545;">
+                  <p style="margin: 0 0 12px 0; font-size: 14px;">Please configure the following in the properties panel:</p>
+                  <p style="margin: 0 0 16px 0; font-size: 14px; font-weight: 500; color: #dc3545;">
                     ${missingItems.join(", ")}
                   </p>
+                  
+                  <!-- Additional helpful message -->
+                  <div style="
+                    background: #e3f2fd;
+                    border: 1px solid #90caf9;
+                    border-radius: 8px;
+                    padding: 12px 16px;
+                    margin: 16px auto 0 auto;
+                    max-width: 400px;
+                    font-size: 13px;
+                    color: #1565c0;
+                    text-align: left;
+                  ">
+                    <div style="font-weight: 600; margin-bottom: 6px;">💡 Quick Setup Tips:</div>
+                    <div style="line-height: 1.4;">
+                      • Use <strong>{{fieldName}}</strong> in prompts for dynamic data<br>
+                      • Create Concat() measures in Qlik for multi-value fields<br>
+                      • Use Round() functions in measures for number formatting<br>
+                      • This extension works with any app - just configure your prompts!
+                    </div>
+                  </div>
                 </div>
               </div>
             `;
@@ -637,16 +729,56 @@ export default function supernova() {
             };
           }
 
-          // Generate button handler
+          // Enhanced Generate button handler with account validation
           if (generateButton && responseDiv) {
             generateButton.onclick = async () => {
+              // First validate single account/record selection
+              const validation = validateSingleAccount(layout);
+
+              if (!validation.valid) {
+                // Show validation error with helpful context
+                responseDiv.innerHTML = `
+                  <div style="
+                    background: #fff3cd;
+                    border: 1px solid #ffeaa7;
+                    border-radius: 8px;
+                    padding: 16px;
+                    color: #856404;
+                    text-align: center;
+                    line-height: 1.5;
+                  ">
+                    <div style="font-size: 32px; margin-bottom: 8px;">⚠️</div>
+                    <h3 style="margin: 0 0 8px 0; color: inherit;">Selection Required</h3>
+                    <p style="margin: 0 0 12px 0; font-size: 14px;">${
+                      validation.message
+                    }</p>
+                    
+                    ${
+                      validation.accountCount > 1
+                        ? `
+                      <div style="
+                        background: #f8f9fa;
+                        border-radius: 6px;
+                        padding: 8px 12px;
+                        margin-top: 12px;
+                        font-size: 12px;
+                        color: #6c757d;
+                      ">
+                        <strong>Tip:</strong> Use filters or selections to narrow down to exactly one record before generating AI analysis.
+                      </div>
+                    `
+                        : ""
+                    }
+                  </div>
+                `;
+                return;
+              }
+
               // Disable button during processing
               generateButton.disabled = true;
               generateButton.style.background =
                 "linear-gradient(135deg, #9ca3af 0%, #6b7280 100%)";
-              generateButton.style.boxShadow = "none";
-              generateButton.innerHTML =
-                '<span style="margin-right: 8px;">⏳</span>Generating...';
+              generateButton.innerHTML = `<span style="margin-right: 8px;">⏳</span>Analyzing ${validation.fieldName}: ${validation.selectedValue}...`;
 
               // Show loading state
               if (props.showAdvancedUI) {
@@ -705,7 +837,7 @@ export default function supernova() {
                           animation: spin 1s linear infinite;
                           margin-right: 8px;
                         "></div>
-                        Analyzing your data...
+                        Processing with Claude AI...
                       </div>
                     </div>
                   </div>
@@ -726,13 +858,14 @@ export default function supernova() {
                       animation: spin 1s linear infinite;
                       margin-bottom: 16px;
                     "></div>
-                    <p style="margin: 0; font-size: 16px;">Analyzing your customer data...</p>
+                    <p style="margin: 0; font-size: 16px;">Analyzing ${validation.fieldName}: <strong>${validation.selectedValue}</strong></p>
+                    <p style="margin: 4px 0 0 0; font-size: 12px; opacity: 0.7;">Processing with Claude AI...</p>
                   </div>
                 `;
               }
 
               try {
-                // Build prompt from properties panel or chat input
+                // Get prompts and replace dynamic fields using existing function
                 let systemPrompt = props.systemPrompt || "";
                 let userPrompt = props.userPrompt || "";
 
@@ -837,33 +970,14 @@ export default function supernova() {
 
                 // Display response based on mode
                 if (props.showAdvancedUI) {
-                  // Chat-style response with user message first
-                  const userMessage =
-                    chatInput && chatInput.value.trim()
-                      ? chatInput.value.trim()
-                      : "Generate analysis";
+                  // Remove loading message first
+                  const loadingMsg = responseDiv.querySelector("#loadingMsg");
+                  if (loadingMsg) {
+                    loadingMsg.remove();
+                  }
 
+                  // Add AI response
                   responseDiv.innerHTML += `
-                    <!-- User message -->
-                    <div style="
-                      display: flex;
-                      justify-content: flex-end;
-                      margin-bottom: 12px;
-                    ">
-                      <div style="
-                        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-                        color: white;
-                        border-radius: 18px 18px 4px 18px;
-                        padding: 10px 16px;
-                        max-width: 75%;
-                        font-size: 13px;
-                        line-height: 1.4;
-                        box-shadow: 0 2px 8px rgba(102, 126, 234, 0.2);
-                      ">
-                        ${userMessage}
-                      </div>
-                    </div>
-                    
                     <!-- AI response -->
                     <div style="
                       display: flex;
@@ -896,9 +1010,14 @@ export default function supernova() {
                   }
                   responseDiv.scrollTop = responseDiv.scrollHeight;
                 } else {
-                  // Simple response with custom styling
+                  // Simple response with record context
                   responseDiv.innerHTML = `
-                    <div style="white-space: pre-wrap; word-wrap: break-word; line-height: 1.5;">
+                    <div style="margin-bottom: 12px; padding: 8px 12px; background: #e8f5e8; border-radius: 6px; font-size: 12px; color: #2e7d2e;">
+                      <strong>Analysis for:</strong> ${
+                        validation.fieldName
+                      } = ${validation.selectedValue}
+                    </div>
+                    <div style="white-space: pre-wrap; word-wrap: break-word; line-height: 1.6;">
                       ${responseText.replace(/\n/g, "<br>")}
                     </div>
                   `;
@@ -920,6 +1039,9 @@ export default function supernova() {
                   ">
                     <div style="font-weight: 600; margin-bottom: 4px;">⚠️ Error</div>
                     ${err.message || "Failed to generate response"}
+                    <div style="margin-top: 8px; font-size: 11px; opacity: 0.8;">
+                      Check your connection name and ensure the Claude SSE endpoint is properly configured.
+                    </div>
                   </div>
                 `;
 
@@ -934,14 +1056,6 @@ export default function supernova() {
                 generateButton.innerHTML = props.showAdvancedUI
                   ? '<span style="margin-right: 6px;">✨</span>Generate'
                   : '<span style="margin-right: 6px;">✨</span>Generate Analysis';
-
-                // Remove loading message if in chat mode
-                if (props.showAdvancedUI) {
-                  const loadingMsg = responseDiv.querySelector("#loadingMsg");
-                  if (loadingMsg) {
-                    loadingMsg.remove();
-                  }
-                }
               }
             };
           }
