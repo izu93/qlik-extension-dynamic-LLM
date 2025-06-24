@@ -32,10 +32,6 @@ export default {
                 value: "claude",
                 label: "🤖 Claude 3.5 Sonnet (External Connection)",
               },
-              {
-                value: "qlik-answers",
-                label: "✨ Qlik Answers (Built-in AI)",
-              },
             ],
           },
           // Claude connection name (only for Claude)
@@ -90,51 +86,7 @@ export default {
             },
             maxlength: 5000, // Large character limit
           },
-          // Qlik Answers specific settings
-          qlikAnswersMode: {
-            type: "string",
-            component: "dropdown",
-            label: "Analysis Type",
-            ref: "props.qlikAnswersMode",
-            defaultValue: "insight",
-            show: function (data) {
-              // Only show for Qlik Answers
-              const connectionType = data.props?.connectionType || "claude";
-              return connectionType === "qlik-answers";
-            },
-            options: [
-              {
-                value: "insight",
-                label: "📊 Generate Insights - Discover patterns and trends",
-              },
-              {
-                value: "question",
-                label: "❓ Answer Questions - Get specific answers",
-              },
-              {
-                value: "narrative",
-                label: "📝 Create Narrative - Generate story from data",
-              },
-              {
-                value: "comparison",
-                label: "⚖️ Compare Data - Analyze differences",
-              },
-            ],
-          },
-          // Natural language input for Qlik Answers
-          naturalLanguageQuery: {
-            type: "string",
-            component: "textarea",
-            label: "Natural Language Query",
-            ref: "props.naturalLanguageQuery",
-            defaultValue: "What are the key insights from this customer data?",
-            show: function (data) {
-              // Only show for Qlik Answers
-              const connectionType = data.props?.connectionType || "claude";
-              return connectionType === "qlik-answers";
-            },
-            maxlength: 1000,
-          },
+
           // Temperature slider control
           temperature: {
             type: "number",
@@ -212,28 +164,6 @@ export default {
             type: "boolean",
             label: "Enable Natural Language Processing",
             ref: "props.enableNaturalLanguage",
-            defaultValue: true,
-            show: function (data) {
-              // Only show for Qlik Answers
-              const connectionType = data.props?.connectionType || "claude";
-              return connectionType === "qlik-answers";
-            },
-          },
-          includeChartSuggestions: {
-            type: "boolean",
-            label: "Include Chart Suggestions",
-            ref: "props.includeChartSuggestions",
-            defaultValue: true,
-            show: function (data) {
-              // Only show for Qlik Answers
-              const connectionType = data.props?.connectionType || "claude";
-              return connectionType === "qlik-answers";
-            },
-          },
-          enableFollowUpQuestions: {
-            type: "boolean",
-            label: "Enable Follow-up Questions",
-            ref: "props.enableFollowUpQuestions",
             defaultValue: true,
             show: function (data) {
               // Only show for Qlik Answers
