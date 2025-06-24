@@ -657,22 +657,285 @@ export default function supernova() {
           }
 
           // Prompt button handlers (advanced mode)
+          // Prompt button handlers (advanced mode) - UPDATED VERSION
           promptButtons.forEach((btn) => {
-            btn.onclick = () => {
+            btn.onclick = async () => {
               const templateType = btn.dataset.template;
-              if (chatInput && templateType && templates[templateType]) {
-                // Use the template's user prompt instead of button text
-                if (templateType === "custom") {
-                  chatInput.value = btn.textContent.trim();
-                } else {
-                  chatInput.value = templates[templateType].user;
-                }
-                chatInput.focus();
+              if (templateType && templates[templateType]) {
+                // First validate single account/record selection
+                const validation = validateSingleAccount(layout);
 
-                // Auto-resize the textarea
-                chatInput.style.height = "auto";
-                chatInput.style.height =
-                  Math.min(chatInput.scrollHeight, 80) + "px";
+                if (!validation.valid) {
+                  // Show validation error
+                  responseDiv.innerHTML = `
+          <div style="
+            background: #fff3cd;
+            border: 1px solid #ffeaa7;
+            border-radius: 8px;
+            padding: 16px;
+            color: #856404;
+            text-align: center;
+            line-height: 1.5;
+          ">
+            <div style="font-size: 32px; margin-bottom: 8px;">⚠️</div>
+            <h3 style="margin: 0 0 8px 0; color: inherit;">Selection Required</h3>
+            <p style="margin: 0 0 12px 0; font-size: 14px;">${
+              validation.message
+            }</p>
+            
+            ${
+              validation.accountCount > 1
+                ? `
+              <div style="
+                background: #f8f9fa;
+                border-radius: 6px;
+                padding: 8px 12px;
+                margin-top: 12px;
+                font-size: 12px;
+                color: #6c757d;
+              ">
+                <strong>Tip:</strong> Use filters or selections to narrow down to exactly one record before generating AI analysis.
+              </div>
+            `
+                : ""
+            }
+          </div>
+        `;
+                  return;
+                }
+
+                // Show user's action immediately
+                const buttonText = btn.textContent.trim();
+                responseDiv.innerHTML += `
+        <!-- User message -->
+        <div style="
+          display: flex;
+          justify-content: flex-end;
+          margin-bottom: 12px;
+        ">
+          <div style="
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border-radius: 18px 18px 4px 18px;
+            padding: 10px 16px;
+            max-width: 75%;
+            font-size: 13px;
+            line-height: 1.4;
+            box-shadow: 0 2px 8px rgba(102, 126, 234, 0.2);
+          ">
+            ${buttonText}
+          </div>
+        </div>
+        
+        <!-- Loading message -->
+        <div id="loadingMsg" style="
+          display: flex;
+          justify-content: flex-start;
+          margin-bottom: 12px;
+        ">
+          <div style="
+            background: white;
+            color: #6b7280;
+            border-radius: 18px 18px 18px 4px;
+            padding: 12px 16px;
+            max-width: 85%;
+            font-size: 13px;
+            line-height: 1.4;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            border: 1px solid #e9ecf3;
+          ">
+            <div style="font-weight: 600; margin-bottom: 6px; color: #667eea; font-size: 12px;">🤖 AI Assistant</div>
+            <div style="display: flex; align-items: center;">
+              <div style="
+                width: 12px;
+                height: 12px;
+                border: 2px solid #e5e7eb;
+                border-top: 2px solid #667eea;
+                border-radius: 50%;
+                animation: spin 1s linear infinite;
+                margin-right: 8px;
+              "></div>
+              Processing with Claude AI...
+            </div>
+          </div>
+        </div>
+      `;
+
+                // Scroll to bottom
+                responseDiv.scrollTop = responseDiv.scrollHeight;
+
+                // Disable all prompt buttons during processing
+                promptButtons.forEach((button) => {
+                  button.disabled = true;
+                  button.style.opacity = "0.6";
+                  button.style.cursor = "not-allowed";
+                });
+
+                try {
+                  // Get template prompts
+                  const template = templates[templateType];
+                  let systemPrompt = template.system;
+                  let userPrompt = template.user;
+
+                  // Replace dynamic fields
+                  systemPrompt = replaceDynamicFields(systemPrompt, layout);
+                  userPrompt = replaceDynamicFields(userPrompt, layout);
+
+                  let fullPrompt = userPrompt;
+                  if (systemPrompt) {
+                    fullPrompt = systemPrompt + "\n\n" + userPrompt;
+                  }
+
+                  // Add data context if hypercube data is available
+                  if (layout.qHyperCube?.qDataPages?.[0]?.qMatrix?.length > 0) {
+                    fullPrompt += "\n\nData Context:\n";
+                    const matrix = layout.qHyperCube.qDataPages[0].qMatrix;
+
+                    // Add column headers if available
+                    if (
+                      layout.qHyperCube.qDimensionInfo?.length ||
+                      layout.qHyperCube.qMeasureInfo?.length
+                    ) {
+                      const headers = [
+                        ...layout.qHyperCube.qDimensionInfo.map(
+                          (d) => d.qFallbackTitle
+                        ),
+                        ...layout.qHyperCube.qMeasureInfo.map(
+                          (m) => m.qFallbackTitle
+                        ),
+                      ];
+                      fullPrompt += headers.join(", ") + "\n";
+                    }
+
+                    // Add data rows to prompt
+                    matrix.forEach((row, idx) => {
+                      if (idx < 100) {
+                        fullPrompt +=
+                          row
+                            .map((cell) => cell.qText || cell.qNum || "")
+                            .join(", ") + "\n";
+                      }
+                    });
+
+                    if (matrix.length > 100) {
+                      fullPrompt += `... and ${
+                        matrix.length - 100
+                      } more rows\n`;
+                    }
+                  }
+
+                  // Simplified escaping
+                  const escapedPrompt = fullPrompt
+                    .replace(/\\/g, "\\\\")
+                    .replace(/"/g, '\\"')
+                    .replace(/'/g, "\\'")
+                    .replace(/\n/g, "\\n")
+                    .replace(/\r/g, "\\r");
+
+                  // Build Qlik expression to call LLM endpoint
+                  const expression = `endpoints.ScriptEvalStr(
+          '{"RequestType":"endpoint",
+           "endpoint":{
+             "connectionname":"${props.connectionName}",
+             "column":"text",
+             "parameters":{
+               "temperature":"${props.temperature}",
+               "Top K":"${props.topK}",
+               "Top P":"${props.topP}",
+               "max_tokens":"${props.maxTokens}"
+             }}}',
+          '${escapedPrompt}'
+        )`;
+
+                  // Execute the expression via Qlik's evaluation API
+                  const response = await app.evaluate({
+                    qExpression: expression,
+                  });
+
+                  const responseText =
+                    response?.qText || response || "No response received";
+
+                  // Remove loading message
+                  const loadingMsg = responseDiv.querySelector("#loadingMsg");
+                  if (loadingMsg) {
+                    loadingMsg.remove();
+                  }
+
+                  // Add AI response
+                  responseDiv.innerHTML += `
+          <!-- AI response -->
+          <div style="
+            display: flex;
+            justify-content: flex-start;
+            margin-bottom: 12px;
+          ">
+            <div style="
+              background: white;
+              color: #374151;
+              border-radius: 18px 18px 18px 4px;
+              padding: 12px 16px;
+              max-width: 85%;
+              font-size: 13px;
+              line-height: 1.4;
+              box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+              border: 1px solid #e9ecf3;
+            ">
+              <div style="font-weight: 600; margin-bottom: 6px; color: #667eea; font-size: 12px;">🤖 AI Assistant</div>
+              <div style="white-space: pre-wrap; word-wrap: break-word;">
+                ${responseText.replace(/\n/g, "<br>")}
+              </div>
+            </div>
+          </div>
+        `;
+
+                  // Scroll to bottom
+                  responseDiv.scrollTop = responseDiv.scrollHeight;
+                } catch (err) {
+                  console.error("LLM Error:", err);
+
+                  // Remove loading message
+                  const loadingMsg = responseDiv.querySelector("#loadingMsg");
+                  if (loadingMsg) {
+                    loadingMsg.remove();
+                  }
+
+                  // Display error
+                  responseDiv.innerHTML += `
+          <div style="
+            display: flex;
+            justify-content: flex-start;
+            margin-bottom: 12px;
+          ">
+            <div style="
+              background: #fef2f2;
+              border: 1px solid #fca5a5;
+              border-radius: 18px 18px 18px 4px;
+              padding: 12px 16px;
+              max-width: 85%;
+              font-size: 13px;
+              line-height: 1.4;
+              color: #dc2626;
+            ">
+              <div style="font-weight: 600; margin-bottom: 6px; color: #dc2626; font-size: 12px;">🤖 AI Assistant</div>
+              <div>
+                <strong>⚠️ Error:</strong> ${
+                  err.message || "Failed to generate response"
+                }
+                <div style="margin-top: 4px; font-size: 11px; opacity: 0.8;">
+                  Check your connection name and ensure the Claude SSE endpoint is properly configured.
+                </div>
+              </div>
+            </div>
+          </div>
+        `;
+                } finally {
+                  // Re-enable all prompt buttons
+                  promptButtons.forEach((button) => {
+                    button.disabled = false;
+                    button.style.opacity = "1";
+                    button.style.cursor = "pointer";
+                  });
+                }
               }
             };
           });
