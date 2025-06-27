@@ -521,6 +521,9 @@ export default function supernova() {
               </div>
             `;
           } else {
+            // Get validation info for UI state
+            const validation = validateSingleAccount(layout);
+
             // Show simple interface
             content += `
               <!-- Simple interface -->
@@ -530,14 +533,110 @@ export default function supernova() {
                 flex-direction: column;
                 gap: 12px;
               ">
+            `;
+
+            if (!validation.valid) {
+              // Show account selection guidance
+              content += `
+                <!-- Account Selection Required -->
+                <div style="
+                  flex: 1;
+                  display: flex;
+                  align-items: center;
+                  justify-content: center;
+                  ${responseStyle}
+                  text-align: center;
+                  min-height: 200px;
+                  max-height: 400px;
+                ">
+                  <div>
+                    <div style="font-size: 48px; margin-bottom: 16px; opacity: 0.4;"></div>
+                    <h3 style="margin: 0 0 8px 0; color: inherit; opacity: 0.9; font-size: 18px;">Select an Account ID</h3>
+                    <p style="margin: 0 0 12px 0; opacity: 0.7; font-size: 14px; line-height: 1.4;">
+                      ${
+                        validation.accountCount > 1
+                          ? `Please filter to select exactly one AccountID to generate AI insights.`
+                          : "Please select an AccountID from the filter panel to analyze customer data."
+                      }
+                    </p>
+                    
+                    ${
+                      validation.accountCount > 1 && validation.values
+                        ? `
+                      <div style="
+                        background: rgba(102, 126, 234, 0.1);
+                        border: 1px solid rgba(102, 126, 234, 0.2);
+                        border-radius: 8px;
+                        padding: 12px;
+                        margin: 12px 0;
+                        font-size: 12px;
+                        color: #667eea;
+                      ">
+                        <div style="font-weight: 600; margin-bottom: 4px;">Currently selected accounts:</div>
+                       
+                      </div>
+                    `
+                        : ""
+                    }
+                    
+                    <div style="
+                      background: #e3f2fd;
+                      border: 1px solid #90caf9;
+                      border-radius: 8px;
+                      padding: 12px;
+                      margin-top: 16px;
+                      font-size: 13px;
+                      color: #1565c0;
+                      text-align: left;
+                      max-width: 300px;
+                      margin-left: auto;
+                      margin-right: auto;
+                    ">
+                      <div style="font-weight: 600; margin-bottom: 6px;">💡 How to select:</div>
+                      <div style="line-height: 1.4;">
+                        • Click on an AccountID in the filter panel<br>
+                        • Use search to find a specific account<br>
+                        • Clear other selections to focus on one account
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                
+                <!-- Disabled Generate button -->
+                <div style="text-align: center;">
+                  <button disabled style="
+                    background: #e9ecef;
+                    color: #6c757d;
+                    border-radius: ${props.borderRadius || 8}px;
+                    padding: 12px 20px;
+                    font-size: ${(props.fontSize || 14) + 1}px;
+                    font-weight: 600;
+                    border: none;
+                    cursor: not-allowed;
+                    min-width: 140px;
+                    display: inline-flex;
+                    align-items: center;
+                    justify-content: center;
+                    opacity: 0.6;
+                  ">
+                    <span style="margin-right: 6px;">🔒</span>
+                    Select Account First
+                  </button>
+                </div>
+              `;
+            } else {
+              // Account is selected - show ready state with animated button
+              content += `
                 <!-- Main message area -->
                 <div id="llmResponse" style="
                   flex: 1;
                   overflow-y: auto;
                   ${responseStyle}
-                  text-align: left;
+                  text-align: center;
                   min-height: 200px;
                   max-height: 400px;
+                  border: 2px solid #d4edda;
+                  background: linear-gradient(135deg, #f8fff9 0%, #f0f9f0 100%);
                 ">
                   <div style="
                     display: flex;
@@ -545,32 +644,76 @@ export default function supernova() {
                     justify-content: center;
                     height: 100%;
                     text-align: center;
-                    color: #6c757d;
+                    color: #155724;
                   ">
                     <div>
-                      <div style="font-size: 32px; margin-bottom: 8px; opacity: 0.3;">📊</div>
-                      <h3 style="margin: 0 0 4px 0; color: inherit; opacity: 0.8; font-size: 16px;">Ready for Analysis</h3>
-                      <p style="margin: 0; opacity: 0.6; font-size: 12px;">Click Generate to start AI analysis</p>
+                      <div style="font-size: 48px; margin-bottom: 12px;">✅</div>
+                      <h3 style="margin: 0 0 8px 0; color: inherit; font-size: 18px; font-weight: 600;">Account Selected!</h3>
+                      <div style="
+                        background: rgba(21, 87, 36, 0.1);
+                        border-radius: 20px;
+                        padding: 8px 16px;
+                        margin: 8px auto 16px auto;
+                        font-size: 14px;
+                        font-weight: 500;
+                        display: inline-block;
+                      ">
+                        ${validation.fieldName}: <strong>${
+                validation.selectedValue
+              }</strong>
+                      </div>
+                      <p style="margin: 0; opacity: 0.8; font-size: 14px; line-height: 1.4;">
+                        Ready to analyze this customer's data<br>
+                        <span style="font-size: 12px; opacity: 0.7;">Click the generate button below to start AI analysis</span>
+                      </p>
                     </div>
                   </div>
                 </div>
                 
-                <!-- Generate button -->
+                <!-- Animated Generate Button -->
                 <div style="text-align: center;">
                   <button id="generateButton" style="
-                    ${buttonStyle}
-                    box-shadow: 0 2px 8px rgba(102, 126, 234, 0.3);
-                    min-width: 140px;
+                    background: linear-gradient(135deg, ${
+                      props.buttonBackgroundColor || "#667eea"
+                    } 0%, ${props.buttonBackgroundColor || "#764ba2"} 100%);
+                    color: ${props.buttonTextColor || "#ffffff"};
+                    border-radius: ${props.borderRadius || 8}px;
+                    padding: 14px 24px;
+                    font-size: ${(props.fontSize || 14) + 2}px;
+                    font-weight: 700;
+                    border: none;
+                    cursor: pointer;
+                    min-width: 160px;
                     display: inline-flex;
                     align-items: center;
                     justify-content: center;
+                    position: relative;
+                    overflow: hidden;
+                    box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
+                    animation: pulseReady 2s ease-in-out infinite;
+                    transform: scale(1.05);
+                    transition: all 0.3s ease;
                   ">
-                    <span style="margin-right: 6px;">✨</span>
+                    <span style="margin-right: 8px; font-size: 18px;">✨</span>
                     Generate Analysis
+                    
+                    <!-- Animated shine effect -->
+                    <div style="
+                      position: absolute;
+                      top: 0;
+                      left: -100%;
+                      width: 100%;
+                      height: 100%;
+                      background: linear-gradient(90deg, transparent, rgba(255,255,255,0.3), transparent);
+                      animation: shine 3s ease-in-out infinite;
+                    "></div>
                   </button>
                 </div>
-              </div>
-            `;
+              `;
+            }
+
+            // Close simple interface container
+            content += `</div>`;
           }
 
           // Close main container
@@ -608,10 +751,43 @@ export default function supernova() {
             #advancedToggle:hover {
               transform: translateY(-1px);
             }
+            
+            /* Pulsing animation for ready button */
+            @keyframes pulseReady {
+              0%, 100% {
+                box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
+                transform: scale(1.05);
+              }
+              50% {
+                box-shadow: 0 6px 25px rgba(102, 126, 234, 0.6);
+                transform: scale(1.08);
+              }
+            }
+            
+            /* Shine effect animation */
+            @keyframes shine {
+              0% { left: -100%; }
+              50% { left: 100%; }
+              100% { left: 100%; }
+            }
+            
+            /* Enhanced button hover when ready */
+            #generateButton:not(:disabled):hover {
+              transform: scale(1.1) !important;
+              box-shadow: 0 8px 30px rgba(102, 126, 234, 0.7) !important;
+              animation: none; /* Stop pulsing on hover */
+            }
+            
+            #generateButton:not(:disabled):active {
+              transform: scale(1.02) !important;
+              box-shadow: 0 4px 15px rgba(102, 126, 234, 0.5) !important;
+            }
+            
             @keyframes spin {
               0% { transform: rotate(0deg); }
               100% { transform: rotate(360deg); }
             }
+            
             /* Scrollbar styling for chat */
             #llmResponse::-webkit-scrollbar {
               width: 6px;
@@ -656,7 +832,6 @@ export default function supernova() {
             });
           }
 
-          // Prompt button handlers (advanced mode)
           // Prompt button handlers (advanced mode) - UPDATED VERSION
           promptButtons.forEach((btn) => {
             btn.onclick = async () => {
@@ -668,98 +843,98 @@ export default function supernova() {
                 if (!validation.valid) {
                   // Show validation error
                   responseDiv.innerHTML = `
-          <div style="
-            background: #fff3cd;
-            border: 1px solid #ffeaa7;
-            border-radius: 8px;
-            padding: 16px;
-            color: #856404;
-            text-align: center;
-            line-height: 1.5;
-          ">
-            <div style="font-size: 32px; margin-bottom: 8px;">⚠️</div>
-            <h3 style="margin: 0 0 8px 0; color: inherit;">Selection Required</h3>
-            <p style="margin: 0 0 12px 0; font-size: 14px;">${
-              validation.message
-            }</p>
-            
-            ${
-              validation.accountCount > 1
-                ? `
-              <div style="
-                background: #f8f9fa;
-                border-radius: 6px;
-                padding: 8px 12px;
-                margin-top: 12px;
-                font-size: 12px;
-                color: #6c757d;
-              ">
-                <strong>Tip:</strong> Use filters or selections to narrow down to exactly one record before generating AI analysis.
-              </div>
-            `
-                : ""
-            }
-          </div>
-        `;
+                    <div style="
+                      background: #fff3cd;
+                      border: 1px solid #ffeaa7;
+                      border-radius: 8px;
+                      padding: 16px;
+                      color: #856404;
+                      text-align: center;
+                      line-height: 1.5;
+                    ">
+                      <div style="font-size: 32px; margin-bottom: 8px;">⚠️</div>
+                      <h3 style="margin: 0 0 8px 0; color: inherit;">Selection Required</h3>
+                      <p style="margin: 0 0 12px 0; font-size: 14px;">${
+                        validation.message
+                      }</p>
+                      
+                      ${
+                        validation.accountCount > 1
+                          ? `
+                        <div style="
+                          background: #f8f9fa;
+                          border-radius: 6px;
+                          padding: 8px 12px;
+                          margin-top: 12px;
+                          font-size: 12px;
+                          color: #6c757d;
+                        ">
+                          <strong>Tip:</strong> Use filters or selections to narrow down to exactly one record before generating AI analysis.
+                        </div>
+                      `
+                          : ""
+                      }
+                    </div>
+                  `;
                   return;
                 }
 
                 // Show user's action immediately
                 const buttonText = btn.textContent.trim();
                 responseDiv.innerHTML += `
-        <!-- User message -->
-        <div style="
-          display: flex;
-          justify-content: flex-end;
-          margin-bottom: 12px;
-        ">
-          <div style="
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
-            border-radius: 18px 18px 4px 18px;
-            padding: 10px 16px;
-            max-width: 75%;
-            font-size: 13px;
-            line-height: 1.4;
-            box-shadow: 0 2px 8px rgba(102, 126, 234, 0.2);
-          ">
-            ${buttonText}
-          </div>
-        </div>
-        
-        <!-- Loading message -->
-        <div id="loadingMsg" style="
-          display: flex;
-          justify-content: flex-start;
-          margin-bottom: 12px;
-        ">
-          <div style="
-            background: white;
-            color: #6b7280;
-            border-radius: 18px 18px 18px 4px;
-            padding: 12px 16px;
-            max-width: 85%;
-            font-size: 13px;
-            line-height: 1.4;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-            border: 1px solid #e9ecf3;
-          ">
-            <div style="font-weight: 600; margin-bottom: 6px; color: #667eea; font-size: 12px;">🤖 AI Assistant</div>
-            <div style="display: flex; align-items: center;">
-              <div style="
-                width: 12px;
-                height: 12px;
-                border: 2px solid #e5e7eb;
-                border-top: 2px solid #667eea;
-                border-radius: 50%;
-                animation: spin 1s linear infinite;
-                margin-right: 8px;
-              "></div>
-              Processing with Claude AI...
-            </div>
-          </div>
-        </div>
-      `;
+                  <!-- User message -->
+                  <div style="
+                    display: flex;
+                    justify-content: flex-end;
+                    margin-bottom: 12px;
+                  ">
+                    <div style="
+                      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                      color: white;
+                      border-radius: 18px 18px 4px 18px;
+                      padding: 10px 16px;
+                      max-width: 75%;
+                      font-size: 13px;
+                      line-height: 1.4;
+                      box-shadow: 0 2px 8px rgba(102, 126, 234, 0.2);
+                    ">
+                      ${buttonText}
+                    </div>
+                  </div>
+                  
+                  <!-- Loading message -->
+                  <div id="loadingMsg" style="
+                    display: flex;
+                    justify-content: flex-start;
+                    margin-bottom: 12px;
+                  ">
+                    <div style="
+                      background: white;
+                      color: #6b7280;
+                      border-radius: 18px 18px 18px 4px;
+                      padding: 12px 16px;
+                      max-width: 85%;
+                      font-size: 13px;
+                      line-height: 1.4;
+                      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+                      border: 1px solid #e9ecf3;
+                    ">
+                      <div style="font-weight: 600; margin-bottom: 6px; color: #667eea; font-size: 12px;">🤖 AI Assistant</div>
+                      <div style="display: flex; align-items: center;">
+                        <div style="
+                          width: 12px;
+                          height: 12px;
+                          border: 2px solid #e5e7eb;
+                          border-top: 2px solid #667eea;
+                          border-radius: 50%;
+                          animation: spin 1s linear infinite;
+                          margin-right: 8px;
+                        "></div>
+                        Processing with Claude AI...
+                      </div>
+                    </div>
+                  </div>
+                `;
 
                 // Scroll to bottom
                 responseDiv.scrollTop = responseDiv.scrollHeight;
@@ -834,18 +1009,18 @@ export default function supernova() {
 
                   // Build Qlik expression to call LLM endpoint
                   const expression = `endpoints.ScriptEvalStr(
-          '{"RequestType":"endpoint",
-           "endpoint":{
-             "connectionname":"${props.connectionName}",
-             "column":"text",
-             "parameters":{
-               "temperature":"${props.temperature}",
-               "Top K":"${props.topK}",
-               "Top P":"${props.topP}",
-               "max_tokens":"${props.maxTokens}"
-             }}}',
-          '${escapedPrompt}'
-        )`;
+                    '{"RequestType":"endpoint",
+                     "endpoint":{
+                       "connectionname":"${props.connectionName}",
+                       "column":"text",
+                       "parameters":{
+                         "temperature":"${props.temperature}",
+                         "Top K":"${props.topK}",
+                         "Top P":"${props.topP}",
+                         "max_tokens":"${props.maxTokens}"
+                       }}}',
+                    '${escapedPrompt}'
+                  )`;
 
                   // Execute the expression via Qlik's evaluation API
                   const response = await app.evaluate({
@@ -863,30 +1038,30 @@ export default function supernova() {
 
                   // Add AI response
                   responseDiv.innerHTML += `
-          <!-- AI response -->
-          <div style="
-            display: flex;
-            justify-content: flex-start;
-            margin-bottom: 12px;
-          ">
-            <div style="
-              background: white;
-              color: #374151;
-              border-radius: 18px 18px 18px 4px;
-              padding: 12px 16px;
-              max-width: 85%;
-              font-size: 13px;
-              line-height: 1.4;
-              box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-              border: 1px solid #e9ecf3;
-            ">
-              <div style="font-weight: 600; margin-bottom: 6px; color: #667eea; font-size: 12px;">🤖 AI Assistant</div>
-              <div style="white-space: pre-wrap; word-wrap: break-word;">
-                ${responseText.replace(/\n/g, "<br>")}
-              </div>
-            </div>
-          </div>
-        `;
+                    <!-- AI response -->
+                    <div style="
+                      display: flex;
+                      justify-content: flex-start;
+                      margin-bottom: 12px;
+                    ">
+                      <div style="
+                        background: white;
+                        color: #374151;
+                        border-radius: 18px 18px 18px 4px;
+                        padding: 12px 16px;
+                        max-width: 85%;
+                        font-size: 13px;
+                        line-height: 1.4;
+                        box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+                        border: 1px solid #e9ecf3;
+                      ">
+                        <div style="font-weight: 600; margin-bottom: 6px; color: #667eea; font-size: 12px;">🤖 AI Assistant</div>
+                        <div style="white-space: pre-wrap; word-wrap: break-word;">
+                          ${responseText.replace(/\n/g, "<br>")}
+                        </div>
+                      </div>
+                    </div>
+                  `;
 
                   // Scroll to bottom
                   responseDiv.scrollTop = responseDiv.scrollHeight;
@@ -901,33 +1076,33 @@ export default function supernova() {
 
                   // Display error
                   responseDiv.innerHTML += `
-          <div style="
-            display: flex;
-            justify-content: flex-start;
-            margin-bottom: 12px;
-          ">
-            <div style="
-              background: #fef2f2;
-              border: 1px solid #fca5a5;
-              border-radius: 18px 18px 18px 4px;
-              padding: 12px 16px;
-              max-width: 85%;
-              font-size: 13px;
-              line-height: 1.4;
-              color: #dc2626;
-            ">
-              <div style="font-weight: 600; margin-bottom: 6px; color: #dc2626; font-size: 12px;">🤖 AI Assistant</div>
-              <div>
-                <strong>⚠️ Error:</strong> ${
-                  err.message || "Failed to generate response"
-                }
-                <div style="margin-top: 4px; font-size: 11px; opacity: 0.8;">
-                  Check your connection name and ensure the Claude SSE endpoint is properly configured.
-                </div>
-              </div>
-            </div>
-          </div>
-        `;
+                    <div style="
+                      display: flex;
+                      justify-content: flex-start;
+                      margin-bottom: 12px;
+                    ">
+                      <div style="
+                        background: #fef2f2;
+                        border: 1px solid #fca5a5;
+                        border-radius: 18px 18px 18px 4px;
+                        padding: 12px 16px;
+                        max-width: 85%;
+                        font-size: 13px;
+                        line-height: 1.4;
+                        color: #dc2626;
+                      ">
+                        <div style="font-weight: 600; margin-bottom: 6px; color: #dc2626; font-size: 12px;">🤖 AI Assistant</div>
+                        <div>
+                          <strong>⚠️ Error:</strong> ${
+                            err.message || "Failed to generate response"
+                          }
+                          <div style="margin-top: 4px; font-size: 11px; opacity: 0.8;">
+                            Check your connection name and ensure the Claude SSE endpoint is properly configured.
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  `;
                 } finally {
                   // Re-enable all prompt buttons
                   promptButtons.forEach((button) => {
@@ -972,22 +1147,39 @@ export default function supernova() {
                 }
               } else {
                 // Reset to simple welcome message
-                responseDiv.innerHTML = `
-                  <div style="
-                    display: flex;
-                    align-items: center;
-                    justify-content: center;
-                    height: 100%;
-                    text-align: center;
-                    color: #6c757d;
-                  ">
-                    <div>
-                      <div style="font-size: 32px; margin-bottom: 8px; opacity: 0.3;">📊</div>
-                      <h3 style="margin: 0 0 4px 0; color: inherit; opacity: 0.8; font-size: 16px;">Ready for Analysis</h3>
-                      <p style="margin: 0; opacity: 0.6; font-size: 12px;">Click Generate to start AI analysis</p>
+                const validation = validateSingleAccount(layout);
+                if (validation.valid) {
+                  responseDiv.innerHTML = `
+                    <div style="
+                      display: flex;
+                      align-items: center;
+                      justify-content: center;
+                      height: 100%;
+                      text-align: center;
+                      color: #155724;
+                    ">
+                      <div>
+                        <div style="font-size: 48px; margin-bottom: 12px;">✅</div>
+                        <h3 style="margin: 0 0 8px 0; color: inherit; font-size: 18px; font-weight: 600;">Account Selected!</h3>
+                        <div style="
+                          background: rgba(21, 87, 36, 0.1);
+                          border-radius: 20px;
+                          padding: 8px 16px;
+                          margin: 8px auto 16px auto;
+                          font-size: 14px;
+                          font-weight: 500;
+                          display: inline-block;
+                        ">
+                          ${validation.fieldName}: <strong>${validation.selectedValue}</strong>
+                        </div>
+                        <p style="margin: 0; opacity: 0.8; font-size: 14px; line-height: 1.4;">
+                          Ready to analyze this customer's data<br>
+                          <span style="font-size: 12px; opacity: 0.7;">Click the generate button below to start AI analysis</span>
+                        </p>
+                      </div>
                     </div>
-                  </div>
-                `;
+                  `;
+                }
               }
             };
           }
@@ -1041,6 +1233,7 @@ export default function supernova() {
               generateButton.disabled = true;
               generateButton.style.background =
                 "linear-gradient(135deg, #9ca3af 0%, #6b7280 100%)";
+              generateButton.style.animation = "none"; // Stop pulsing
               generateButton.innerHTML = `<span style="margin-right: 8px;">⏳</span>Analyzing ${validation.fieldName}: ${validation.selectedValue}...`;
 
               // Show loading state
@@ -1312,13 +1505,16 @@ export default function supernova() {
               } finally {
                 // Re-enable button
                 generateButton.disabled = false;
-                generateButton.style.background =
-                  "linear-gradient(135deg, #667eea 0%, #764ba2 100%)";
+                generateButton.style.background = `linear-gradient(135deg, ${
+                  props.buttonBackgroundColor || "#667eea"
+                } 0%, ${props.buttonBackgroundColor || "#764ba2"} 100%)`;
                 generateButton.style.boxShadow =
-                  "0 2px 8px rgba(102, 126, 234, 0.3)";
+                  "0 4px 15px rgba(102, 126, 234, 0.4)";
+                generateButton.style.animation =
+                  "pulseReady 2s ease-in-out infinite";
                 generateButton.innerHTML = props.showAdvancedUI
                   ? '<span style="margin-right: 6px;">✨</span>Generate'
-                  : '<span style="margin-right: 6px;">✨</span>Generate Analysis';
+                  : '<span style="margin-right: 8px; font-size: 18px;">✨</span>Generate Analysis';
               }
             };
           }
