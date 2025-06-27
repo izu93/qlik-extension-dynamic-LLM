@@ -558,27 +558,7 @@ export default function supernova() {
                           ? `Please filter to select exactly one AccountID to generate AI insights.`
                           : "Please select an AccountID from the filter panel to analyze customer data."
                       }
-                    </p>
-                    
-                    ${
-                      validation.accountCount > 1 && validation.values
-                        ? `
-                      <div style="
-                        background: rgba(102, 126, 234, 0.1);
-                        border: 1px solid rgba(102, 126, 234, 0.2);
-                        border-radius: 8px;
-                        padding: 12px;
-                        margin: 12px 0;
-                        font-size: 12px;
-                        color: #667eea;
-                      ">
-                        <div style="font-weight: 600; margin-bottom: 4px;">Currently selected accounts:</div>
-                       
-                      </div>
-                    `
-                        : ""
-                    }
-                    
+                    </p>                    
                     <div style="
                       background: #e3f2fd;
                       border: 1px solid #90caf9;
@@ -678,7 +658,7 @@ export default function supernova() {
                     } 0%, ${props.buttonBackgroundColor || "#764ba2"} 100%);
                     color: ${props.buttonTextColor || "#ffffff"};
                     border-radius: ${props.borderRadius || 8}px;
-                    padding: 14px 24px;
+                    padding: 5px 10px;
                     font-size: ${(props.fontSize || 14) + 2}px;
                     font-weight: 700;
                     border: none;
@@ -690,7 +670,7 @@ export default function supernova() {
                     position: relative;
                     overflow: hidden;
                     box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
-                    animation: pulseReady 2s ease-in-out infinite;
+                    animation: pulseReady 5s ease-in-out infinite;
                     transform: scale(1.05);
                     transition: all 0.3s ease;
                   ">
