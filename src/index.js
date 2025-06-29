@@ -1,116 +1,349 @@
-// Import necessary hooks from Nebula.js for Qlik Sense extensions
+// Streamlined index.js - Fully dynamic custom expression validation
 import { useElement, useLayout, useEffect, useApp } from "@nebula.js/stardust";
-
-// Import modular configuration files
 import objectProperties from "./object-properties";
 import extensionDefinition from "./ext";
 import dataConfiguration from "./data";
 
 export default function supernova() {
   return {
-    // QAE (Qlik Analytics Engine) configuration
     qae: {
       properties: objectProperties,
       data: dataConfiguration,
     },
-    // Extension definition for property panel
     ext: extensionDefinition,
-    // Main component function
     component() {
-      // Get DOM element reference
       const element = useElement();
-      // Get layout object with properties and data
       const layout = useLayout();
-      // Get Qlik app instance for API calls
       const app = useApp();
 
-      // Define prompt templates for advanced mode
-      const getPromptTemplates = () => ({
-        custom: {
-          system: "",
-          user: "",
-        },
-        shap_analysis: {
-          system:
-            "You are a customer analytics expert specializing in machine learning model interpretation and churn prediction. Focus on SHAP (SHapley Additive exPlanations) values to explain feature importance from the customer churn data.",
-          user: "Based on the SHAP values provided in the data (automl_feature and SHAP_value columns), analyze which features have the strongest positive and negative impact on customer churn prediction. Focus on features like PlanType, BaseFee, ServiceRating, NumberOfPenalties, CurrentPeriodUsage, PriorPeriodUsage, AdditionalFeatureSpend, ServiceTickets, HasRenewed, Promotion, and StartWeek. Provide business interpretations and actionable recommendations for each key feature that drives or prevents churn.",
-        },
-        customer_risk_profile: {
-          system:
-            "You are a customer success manager specializing in risk assessment and proactive customer management using churn prediction data.",
-          user: "Based on the customer data including AccountID, churn predictions (Churned_predicted, Churned_no, Churned_yes), and customer attributes (PlanType, BaseFee, ServiceRating, NumberOfPenalties, ServiceTickets, HasRenewed, CurrentPeriodUsage, PriorPeriodUsage, AdditionalFeatureSpend, Promotion, StartWeek), identify high-risk customer profiles. Focus on customers with high Churned_yes probabilities and specific combinations of risk factors. Recommend specific intervention strategies for different risk segments.",
-        },
-        customer_trends: {
-          system:
-            "You are a business intelligence analyst specializing in customer behavior analysis and trend identification for SaaS businesses.",
-          user: "Analyze the customer data to identify key trends and patterns. Look at customer behavior over time, usage patterns, billing trends, service interactions, and renewal patterns. Identify emerging trends that could indicate opportunities for growth or areas of concern. Provide insights on customer segments, seasonal patterns, and recommendations for business strategy.",
-        },
-      });
+      // Helper function to extract field name from custom expression
+      const extractFieldNameFromExpression = (customExpression) => {
+        if (!customExpression) return null;
 
-      // Single Account Validation Function
-      const validateSingleAccount = (layout) => {
+        // Try to extract field name from expressions like:
+        // GetSelectedCount(AccountID)=1
+        // GetPossibleCount([automl_feature])=1
+        // GetSelectedCount(CustomerName)=1
+        const fieldMatch = customExpression.match(
+          /Get(?:Selected|Possible)Count\s*\(\s*\[?([^\])\s]+)\]?\s*\)/i
+        );
+        if (fieldMatch) {
+          return fieldMatch[1].trim();
+        }
+        return null;
+      };
+
+      // Alternative validation using hypercube data - fully dynamic based on expression
+      const validateUsingHypercubeData = (layout, props) => {
+        const customExpression = props.customValidationExpression;
+        const customMessage =
+          props.customValidationMessage ||
+          "Please make the required selections to proceed with AI analysis";
+
         if (!layout.qHyperCube?.qDataPages?.[0]?.qMatrix?.length) {
           return {
             valid: false,
-            message: "No data available",
-            accountCount: 0,
+            message:
+              "No data available - please add dimensions to the extension",
+            details: [],
+            mode: "hypercube_validation",
           };
         }
 
         const matrix = layout.qHyperCube.qDataPages[0].qMatrix;
         const dimensionInfo = layout.qHyperCube.qDimensionInfo || [];
 
-        if (dimensionInfo.length === 0) {
+        // Extract field name from the custom expression dynamically
+        let fieldName = extractFieldNameFromExpression(customExpression);
+
+        if (!fieldName) {
           return {
             valid: false,
-            message:
-              "No dimensions found. Please add dimensions to analyze data.",
-            accountCount: 0,
+            message: "Could not extract field name from expression",
+            details: [
+              {
+                label: "Expression Analysis",
+                valid: false,
+                message: `Unable to parse field name from: ${customExpression}`,
+                suggestion:
+                  "Use format like GetSelectedCount(FieldName)=1 or GetPossibleCount([FieldName])=1",
+              },
+            ],
+            mode: "hypercube_validation",
           };
         }
 
-        // Check if first dimension has multiple unique values (assuming it's the key field like AccountID)
-        const firstDimIndex = 0;
+        // Look for the specified field in dimensions
+        const targetDimIndex = dimensionInfo.findIndex(
+          (dim) =>
+            dim.qFallbackTitle === fieldName ||
+            dim.qFallbackTitle.toLowerCase() === fieldName.toLowerCase()
+        );
+
+        if (targetDimIndex === -1) {
+          return {
+            valid: false,
+            message: `Please add '${fieldName}' as a dimension and make a selection`,
+            details: [
+              {
+                label: "Missing Dimension",
+                valid: false,
+                message: `Field '${fieldName}' not found. Available: ${dimensionInfo
+                  .map((d) => d.qFallbackTitle)
+                  .join(", ")}`,
+                suggestion: `Add '${fieldName}' as a dimension to the extension, or check your expression spelling`,
+                fieldName: fieldName, // Keep the field name for error display
+              },
+            ],
+            mode: "hypercube_validation",
+          };
+        }
+
+        // Check unique values in the target dimension
         const uniqueValues = [
           ...new Set(
             matrix
               .map(
-                (row) => row[firstDimIndex]?.qText || row[firstDimIndex]?.qNum
+                (row) => row[targetDimIndex]?.qText || row[targetDimIndex]?.qNum
               )
               .filter((val) => val !== null && val !== undefined && val !== "")
           ),
         ];
 
-        const accountCount = uniqueValues.length;
+        const valueCount = uniqueValues.length;
 
-        if (accountCount === 0) {
-          return {
-            valid: false,
-            message: "No data records found",
-            accountCount: 0,
-          };
-        }
+        // Determine if valid based on the expression pattern
+        let isValid = false;
+        let expectedCount = 1; // default
 
-        if (accountCount > 1) {
-          const firstDimName = dimensionInfo[0]?.qFallbackTitle || "Key field";
-          return {
-            valid: false,
-            message: `Multiple ${firstDimName} values selected (${accountCount}). Please filter to select exactly one record for AI analysis.`,
-            accountCount: accountCount,
-            values: uniqueValues.slice(0, 3),
-          };
+        // Check if expression specifies =1, >=1, >0, etc.
+        if (customExpression.includes("=1")) {
+          expectedCount = 1;
+          isValid = valueCount === 1;
+        } else if (
+          customExpression.includes(">=1") ||
+          customExpression.includes(">0")
+        ) {
+          expectedCount = "1 or more";
+          isValid = valueCount >= 1;
+        } else {
+          // Default to exactly 1
+          expectedCount = 1;
+          isValid = valueCount === 1;
         }
 
         return {
-          valid: true,
-          accountCount: 1,
-          selectedValue: uniqueValues[0],
-          fieldName: dimensionInfo[0]?.qFallbackTitle || "Record",
-          message: `Single record selected for analysis`,
+          valid: isValid,
+          message: isValid ? "Selection validation passed" : customMessage,
+          details: [
+            {
+              label: `${fieldName} Selection`,
+              valid: isValid,
+              message: isValid
+                ? `Valid: ${valueCount} value(s) selected from ${fieldName}`
+                : `Invalid: ${valueCount} values found in ${fieldName}, expected ${expectedCount}`,
+              result: valueCount,
+              values: uniqueValues.slice(0, 3),
+              dimensionName: dimensionInfo[targetDimIndex]?.qFallbackTitle,
+              fieldName: fieldName,
+            },
+          ],
+          mode: "hypercube_validation",
         };
       };
 
-      // Simplified dynamic field replacement function
+      // Custom expression validation - with fallback to hypercube validation
+      const validateCustomExpression = async (layout, props, app) => {
+        const customExpression = props.customValidationExpression;
+        const customMessage =
+          props.customValidationMessage ||
+          "Please make the required selections to proceed with AI analysis";
+
+        if (!customExpression || customExpression.trim() === "") {
+          return {
+            valid: false,
+            message: "Custom validation expression not configured",
+            details: [],
+            mode: "custom_expression",
+          };
+        }
+
+        try {
+          // Debug: Log the expression being evaluated
+          console.log("Evaluating expression:", customExpression);
+
+          // Evaluate the custom expression with current data state
+          const result = await app.evaluate({
+            qExpression: customExpression,
+          });
+
+          // Debug: Log the result
+          console.log("Expression result:", result);
+
+          // Get the actual result value - handle both qNum and qText
+          let resultValue = result?.qNum;
+          if (resultValue === undefined || resultValue === null) {
+            resultValue = result?.qText;
+          }
+
+          // For debugging, also try to parse text as number
+          if (typeof resultValue === "string" && !isNaN(resultValue)) {
+            resultValue = parseInt(resultValue);
+          }
+
+          console.log("Parsed result value:", resultValue, typeof resultValue);
+
+          // If result is -1 or undefined, fall back to hypercube validation
+          if (
+            resultValue === -1 ||
+            resultValue === undefined ||
+            resultValue === null
+          ) {
+            console.log(
+              "Expression evaluation failed, falling back to hypercube validation"
+            );
+            return validateUsingHypercubeData(layout, props);
+          }
+
+          // Consider it valid if result is exactly 1
+          const isValid = resultValue === 1 || resultValue === "1";
+
+          console.log(
+            "Validation result:",
+            isValid,
+            "from value:",
+            resultValue
+          );
+
+          return {
+            valid: isValid,
+            message: isValid ? "Selection validation passed" : customMessage,
+            details: [
+              {
+                label: "Custom Expression",
+                valid: isValid,
+                message: isValid
+                  ? `Expression result: ${resultValue} (Valid)`
+                  : `Expression result: ${resultValue} (Invalid - expected 1)`,
+                expression: customExpression,
+                result: resultValue,
+                fieldName: extractFieldNameFromExpression(customExpression), // Add field name extraction
+                suggestion:
+                  resultValue === 0
+                    ? "Make a selection in the filter to get result = 1"
+                    : "",
+              },
+            ],
+            mode: "custom_expression",
+          };
+        } catch (error) {
+          console.error("Validation expression error:", error);
+          console.log(
+            "Expression evaluation failed, falling back to hypercube validation"
+          );
+          return validateUsingHypercubeData(layout, props);
+        }
+      };
+
+      // Fallback validation for when custom validation is disabled
+      const validateBasicSelection = (layout) => {
+        // When custom validation is disabled, require user to enable it first
+        return {
+          valid: false,
+          message:
+            "Please enable custom selection validation and configure validation rules",
+          mode: "basic",
+          requiresValidationSetup: true,
+        };
+      };
+
+      // Main validation function
+      const validateSelections = async (layout, app) => {
+        const props = layout?.props || {};
+
+        // If custom validation is enabled, use custom expression
+        if (props.enableCustomValidation) {
+          return await validateCustomExpression(layout, props, app);
+        } else {
+          // Basic validation - just check if data exists
+          return validateBasicSelection(layout);
+        }
+      };
+
+      // Enhanced dynamic info for header - extract field from expression dynamically
+      const getDynamicSelectionInfo = (layout, validationResult) => {
+        if (!validationResult.valid) {
+          return "";
+        }
+
+        const matrix = layout.qHyperCube.qDataPages[0].qMatrix;
+        const dimensionInfo = layout.qHyperCube.qDimensionInfo || [];
+
+        if (matrix.length === 0 || dimensionInfo.length === 0) {
+          return "";
+        }
+
+        let infoStrings = [];
+
+        // If we have validation details with field info, use that
+        if (
+          validationResult.details &&
+          validationResult.details[0]?.fieldName
+        ) {
+          const fieldName = validationResult.details[0].fieldName;
+          const dimIndex = dimensionInfo.findIndex(
+            (dim) =>
+              dim.qFallbackTitle === fieldName ||
+              dim.qFallbackTitle.toLowerCase() === fieldName.toLowerCase()
+          );
+
+          if (dimIndex !== -1) {
+            const value =
+              matrix[0][dimIndex]?.qText || matrix[0][dimIndex]?.qNum;
+            if (value) {
+              infoStrings.push(`${fieldName}: ${value}`);
+            }
+          }
+        } else {
+          // Fallback: try to find AccountID or similar
+          const accountIdIndex = dimensionInfo.findIndex(
+            (dim) =>
+              dim.qFallbackTitle.toLowerCase().includes("account") ||
+              dim.qFallbackTitle === "AccountID"
+          );
+
+          if (accountIdIndex !== -1) {
+            const accountValue =
+              matrix[0][accountIdIndex]?.qText ||
+              matrix[0][accountIdIndex]?.qNum;
+            if (accountValue) {
+              infoStrings.push(`Account: ${accountValue}`);
+            }
+          }
+        }
+
+        // Look for Risk/Churn prediction (optional secondary info)
+        const riskIndex = dimensionInfo.findIndex((dim) => {
+          const title = dim.qFallbackTitle.toLowerCase();
+          return (
+            title.includes("risk") ||
+            title.includes("churn") ||
+            title.includes("predict")
+          );
+        });
+
+        if (riskIndex !== -1) {
+          const riskValue =
+            matrix[0][riskIndex]?.qText || matrix[0][riskIndex]?.qNum;
+          if (riskValue) {
+            infoStrings.push(`Risk: ${riskValue}`);
+          }
+        }
+
+        return infoStrings.join(" | ");
+      };
+
+      // Dynamic field replacement function - works with any fields
       const replaceDynamicFields = (promptText, layout) => {
         if (!layout.qHyperCube?.qDataPages?.[0]?.qMatrix?.length) {
           return promptText;
@@ -120,20 +353,20 @@ export default function supernova() {
         const dimensionInfo = layout.qHyperCube.qDimensionInfo || [];
         const measureInfo = layout.qHyperCube.qMeasureInfo || [];
 
-        // Create simple field mappings
+        // Create field mappings dynamically
         const fieldMap = {};
 
-        // Add dimensions - keep it simple
+        // Add dimensions
         dimensionInfo.forEach((dim, index) => {
           const fieldName = dim.qFallbackTitle.toLowerCase();
           const values = matrix
             .map((row) => row[index]?.qText || row[index]?.qNum || "")
             .filter((v) => v !== "");
           const uniqueValues = [...new Set(values)];
-          fieldMap[fieldName] = uniqueValues.slice(0, 5).join(", "); // Limit to 5 values
+          fieldMap[fieldName] = uniqueValues.slice(0, 5).join(", ");
         });
 
-        // Add measures - keep it simple
+        // Add measures
         measureInfo.forEach((measure, index) => {
           const fieldName = measure.qFallbackTitle.toLowerCase();
           const dimCount = dimensionInfo.length;
@@ -142,15 +375,13 @@ export default function supernova() {
               row[dimCount + index]?.qNum || row[dimCount + index]?.qText || 0;
             return parseFloat(val) || 0;
           });
-
-          // Just show the values, don't overcomplicate
           fieldMap[fieldName] = values
             .slice(0, 5)
             .map((v) => v.toString())
             .join(", ");
         });
 
-        // Simple replacement without complex regex - support both {field} and {{field}}
+        // Replace field placeholders - support both {field} and {{field}}
         let replacedPrompt = promptText;
 
         Object.keys(fieldMap).forEach((fieldName) => {
@@ -180,63 +411,318 @@ export default function supernova() {
         return replacedPrompt;
       };
 
-      // Get dynamic account info for header
-      const getDynamicAccountInfo = (layout) => {
-        const validation = validateSingleAccount(layout);
+      // Validation error display
+      const generateValidationErrorHTML = (validationResult, props) => {
+        const responseStyle = `
+          background: ${props.responseBackgroundColor || "#f8f9fa"};
+          color: ${props.responseTextColor || "#212529"};
+          border: 1px solid ${props.responseBorderColor || "#e9ecef"};
+          border-radius: ${props.borderRadius || 8}px;
+          padding: 16px;
+          font-size: ${props.fontSize || 14}px;
+          text-align: ${props.textAlignment || "left"};
+          line-height: 1.5;
+          margin: 0;
+          word-wrap: break-word;
+          overflow-wrap: break-word;
+        `;
 
-        if (!validation.valid) {
-          return ""; // Show nothing when no account is selected
-        }
-
-        const matrix = layout.qHyperCube.qDataPages[0].qMatrix;
-        const dimensionInfo = layout.qHyperCube.qDimensionInfo || [];
-
-        let accountInfo = "";
-
-        // Look for AccountID dimension
-        const accountIdIndex = dimensionInfo.findIndex((dim) =>
-          dim.qFallbackTitle.toLowerCase().includes("account")
-        );
-
-        if (accountIdIndex !== -1 && matrix.length > 0) {
-          const accountId =
-            matrix[0][accountIdIndex]?.qText || matrix[0][accountIdIndex]?.qNum;
-          if (accountId) {
-            accountInfo = `Account: ${accountId}`;
-
-            // Look for churn prediction if available
-            const churnIndex = dimensionInfo.findIndex(
-              (dim) =>
-                dim.qFallbackTitle.toLowerCase().includes("churn") &&
-                dim.qFallbackTitle.toLowerCase().includes("predict")
-            );
-
-            if (churnIndex !== -1) {
-              const churnPrediction =
-                matrix[0][churnIndex]?.qText || matrix[0][churnIndex]?.qNum;
-              if (churnPrediction) {
-                accountInfo += ` | Risk: ${churnPrediction}`;
-              }
-            }
+        // Extract field name from validation details for dynamic messaging
+        const getFieldNameFromValidation = (validationResult) => {
+          if (
+            validationResult.details &&
+            validationResult.details[0]?.fieldName
+          ) {
+            return validationResult.details[0].fieldName;
           }
+          return null;
+        };
+
+        // Generate dynamic error message based on field name
+        const getDynamicErrorMessage = (validationResult) => {
+          const fieldName = getFieldNameFromValidation(validationResult);
+          if (fieldName) {
+            return `Please make the required selection in <strong>${fieldName}</strong> to proceed with AI analysis`;
+          }
+          return (
+            validationResult.message ||
+            "Please make the required selections to proceed with AI analysis"
+          );
+        };
+
+        if (validationResult.mode === "custom_expression") {
+          const fieldName = getFieldNameFromValidation(validationResult);
+          const dynamicMessage = getDynamicErrorMessage(validationResult);
+
+          return `
+            <div style="
+              flex: 1;
+              display: flex;
+              align-items: center;
+              justify-content: center;
+              ${responseStyle}
+              text-align: center;
+              min-height: 150px;
+              max-height: 350px;
+              border-color: #ffeaa7;
+              background: #fff3cd;
+              color: #856404;
+            ">
+              <div style="max-width: 450px; padding: 20px;">
+                <div style="font-size: 24px; margin-bottom: 8px;">⚠️</div>
+                <h3 style="margin: 0 0 8px 0; color: inherit; font-size: 16px;">Selection Required</h3>
+                <p style="margin: 0 0 12px 0; font-size: 13px; line-height: 1.4;">
+                  ${dynamicMessage}
+                </p>
+                
+                <div style="
+                  background: rgba(133, 100, 4, 0.1);
+                  border-radius: 8px;
+                  padding: 12px;
+                  margin: 12px 0;
+                  text-align: left;
+                ">
+                  <div style="font-weight: 600; margin-bottom: 6px; font-size: 12px;">🔍 Validation Rule:</div>
+                  <div style="font-size: 11px; font-family: monospace; background: rgba(0,0,0,0.1); padding: 6px 8px; border-radius: 4px; word-break: break-all; line-height: 1.3;">
+                    ${
+                      validationResult.details[0]?.expression ||
+                      "Custom expression"
+                    }
+                  </div>
+                  ${
+                    validationResult.details[0]?.result !== undefined
+                      ? `
+                    <div style="font-size: 11px; margin-top: 6px;">
+                      <strong>Result:</strong> ${
+                        validationResult.details[0].result
+                      } 
+                      ${
+                        validationResult.details[0]?.error
+                          ? `<br><strong>Error:</strong> ${validationResult.details[0].error}`
+                          : ""
+                      }
+                      ${
+                        validationResult.details[0]?.suggestion
+                          ? `<br><strong>💡 Suggestion:</strong> ${validationResult.details[0].suggestion}`
+                          : ""
+                      }
+                    </div>
+                  `
+                      : ""
+                  }
+                </div>
+                
+                <div style="
+                  background: #e3f2fd;
+                  border: 1px solid #90caf9;
+                  border-radius: 8px;
+                  padding: 12px;
+                  margin-top: 12px;
+                  font-size: 11px;
+                  color: #1565c0;
+                  text-align: left;
+                  line-height: 1.3;
+                ">
+                  <div style="font-weight: 600; margin-bottom: 6px;">💡 How to fix:</div>
+                  <div>
+                    ${
+                      fieldName
+                        ? `Make a selection in <strong>${fieldName}</strong> to satisfy the validation expression above. The AI analysis will become available once the condition is met.`
+                        : `Make the required selections in your app to satisfy the validation expression above. The AI analysis will become available once all conditions are met.`
+                    }
+                  </div>
+                </div>
+              </div>
+            </div>
+          `;
         }
 
-        return (
-          accountInfo || `${validation.fieldName}: ${validation.selectedValue}`
-        );
+        // For hypercube validation errors
+        if (validationResult.mode === "hypercube_validation") {
+          const fieldName = getFieldNameFromValidation(validationResult);
+          const dynamicMessage = getDynamicErrorMessage(validationResult);
+
+          return `
+            <div style="
+              flex: 1;
+              display: flex;
+              align-items: center;
+              justify-content: center;
+              ${responseStyle}
+              text-align: center;
+              min-height: 150px;
+              max-height: 350px;
+              border-color: #ffeaa7;
+              background: #fff3cd;
+              color: #856404;
+            ">
+              <div style="max-width: 450px; padding: 20px;">
+                <div style="font-size: 24px; margin-bottom: 8px;">⚠️</div>
+                <h3 style="margin: 0 0 8px 0; color: inherit; font-size: 16px;">Selection Required</h3>
+                <p style="margin: 0 0 12px 0; font-size: 13px; line-height: 1.4;">
+                  ${dynamicMessage}
+                </p>
+                
+                ${
+                  validationResult.details && validationResult.details[0]
+                    ? `
+                  <div style="
+                    background: rgba(133, 100, 4, 0.1);
+                    border-radius: 8px;
+                    padding: 12px;
+                    margin: 12px 0;
+                    text-align: left;
+                  ">
+                    <div style="font-weight: 600; margin-bottom: 6px; font-size: 12px;">📊 Field Status:</div>
+                    <div style="font-size: 11px;">
+                      <strong>Field:</strong> ${
+                        validationResult.details[0].fieldName || "Unknown"
+                      }<br>
+                      <strong>Current Values:</strong> ${
+                        validationResult.details[0].result || 0
+                      }<br>
+                      <strong>Required:</strong> ${
+                        validationResult.details[0].message ||
+                        "Single selection"
+                      }
+                    </div>
+                  </div>
+                `
+                    : ""
+                }
+                
+                <div style="
+                  background: #e3f2fd;
+                  border: 1px solid #90caf9;
+                  border-radius: 8px;
+                  padding: 12px;
+                  margin-top: 12px;
+                  font-size: 11px;
+                  color: #1565c0;
+                  text-align: left;
+                  line-height: 1.3;
+                ">
+                  <div style="font-weight: 600; margin-bottom: 6px;">💡 How to select:</div>
+                  <div>
+                    ${
+                      fieldName
+                        ? `• Use the filters to make a selection in <strong>${fieldName}</strong><br>• Check that only one value is selected<br>• Ensure the selection satisfies the validation condition`
+                        : `• Use the filters to make the required selections<br>• Check the validation rule for specific requirements<br>• Make sure your selections satisfy the conditions`
+                    }
+                  </div>
+                </div>
+              </div>
+            </div>
+          `;
+        }
+
+        // Basic validation error for when custom validation is disabled
+        if (validationResult.requiresValidationSetup) {
+          return `
+            <div style="
+              flex: 1;
+              display: flex;
+              align-items: center;
+              justify-content: center;
+              ${responseStyle}
+              text-align: center;
+              min-height: 150px;
+              max-height: 350px;
+              border-color: #ffeaa7;
+              background: #fff3cd;
+              color: #856404;
+            ">
+              <div style="max-width: 400px; padding: 20px;">
+                <div style="font-size: 24px; margin-bottom: 8px;">⚙️</div>
+                <h3 style="margin: 0 0 8px 0; color: inherit; font-size: 16px;">Validation Setup Required</h3>
+                <p style="margin: 0 0 12px 0; font-size: 13px; line-height: 1.4;">
+                  Please enable custom selection validation and configure validation rules to use AI analysis
+                </p>
+                
+                <div style="
+                  background: #e3f2fd;
+                  border: 1px solid #90caf9;
+                  border-radius: 8px;
+                  padding: 12px;
+                  margin-top: 12px;
+                  font-size: 11px;
+                  color: #1565c0;
+                  text-align: left;
+                  line-height: 1.3;
+                ">
+                  <div style="font-weight: 600; margin-bottom: 6px;">💡 Setup steps:</div>
+                  <div>
+                    1. Check "Enable Custom Selection Validation"<br>
+                    2. Add validation expression (e.g., GetSelectedCount(automl_feature)=1)<br>
+                    3. Configure custom error message<br>
+                    4. Save and make your selections to enable AI analysis
+                  </div>
+                </div>
+              </div>
+            </div>
+          `;
+        }
+
+        // Default fallback error
+        const fieldName = getFieldNameFromValidation(validationResult);
+        const dynamicMessage = getDynamicErrorMessage(validationResult);
+
+        return `
+          <div style="
+            flex: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            ${responseStyle}
+            text-align: center;
+            min-height: 150px;
+            max-height: 350px;
+            border-color: #ffeaa7;
+            background: #fff3cd;
+            color: #856404;
+          ">
+            <div style="max-width: 350px; padding: 20px;">
+              <div style="font-size: 24px; margin-bottom: 8px;">⚠️</div>
+              <h3 style="margin: 0 0 8px 0; color: inherit; font-size: 16px;">Selection Required</h3>
+              <p style="margin: 0 0 12px 0; font-size: 13px; line-height: 1.4;">
+                ${dynamicMessage}
+              </p>
+              
+              <div style="
+                background: #e3f2fd;
+                border: 1px solid #90caf9;
+                border-radius: 8px;
+                padding: 12px;
+                margin-top: 12px;
+                font-size: 11px;
+                color: #1565c0;
+                text-align: left;
+                line-height: 1.3;
+              ">
+                <div style="font-weight: 600; margin-bottom: 6px;">💡 How to select:</div>
+                <div>
+                  ${
+                    fieldName
+                      ? `• Use the filters to make a selection in <strong>${fieldName}</strong><br>• Check the validation rule for specific requirements<br>• Make sure your selections satisfy the conditions`
+                      : `• Use the filters to make the required selections<br>• Check the validation rule for specific requirements<br>• Make sure your selections satisfy the conditions`
+                  }
+                </div>
+              </div>
+            </div>
+          </div>
+        `;
       };
 
-      // Effect hook to handle rendering and updates
+      // Main effect hook - Re-run when layout changes (selections, filters, etc.)
       useEffect(() => {
-        if (!element) return; // Exit if no element
+        if (!element) return;
 
-        // Main render function
-        const render = () => {
-          // Extract properties from layout, with fallback
+        const render = async () => {
           const props = layout?.props || {};
-          const templates = getPromptTemplates();
-          const accountInfo = getDynamicAccountInfo(layout);
-          const validation = validateSingleAccount(layout);
+
+          // Get validation result
+          const validation = await validateSelections(layout, app);
+          const selectionInfo = getDynamicSelectionInfo(layout, validation);
 
           // Apply custom styling
           const headerStyle = `
@@ -277,438 +763,110 @@ export default function supernova() {
             white-space: nowrap;
           `;
 
-          // Start building HTML content with custom styling
+          // Build header
           let content = `
-            <div style="
-              font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-              height: 100%;
-              box-sizing: border-box;
-              display: flex;
-              flex-direction: column;
-              background: #ffffff;
-              min-height: 200px;
-            ">
-              <!-- Header section with account info and generate button -->
-              <div style="
-                display: flex;
-                align-items: center;
-                justify-content: space-between;
-                margin-bottom: 8px;
-                padding-bottom: 8px;
-                border-bottom: 1px solid #e0e0e0;
-                ${headerStyle}
-                flex-wrap: wrap;
-                gap: 8px;
-              ">
+            <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; height: 100%; box-sizing: border-box; display: flex; flex-direction: column; background: #ffffff; min-height: 200px;">
+              <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; padding-bottom: 8px; border-bottom: 1px solid #e0e0e0; ${headerStyle} flex-wrap: wrap; gap: 8px;">
                 <div style="display: flex; align-items: center; flex: 1; min-width: 0;">
                   <span style="font-size: 20px; margin-right: 8px; flex-shrink: 0;">🤖</span>
                   <div style="min-width: 0; flex: 1;">
-                    <h2 style="
-                      margin: 0;
-                      font-size: 16px;
-                      font-weight: 600;
-                      color: inherit;
-                      white-space: nowrap;
-                      overflow: hidden;
-                      text-overflow: ellipsis;
-                    ">AI Analysis Results</h2>
+                    <h2 style="margin: 0; font-size: 16px; font-weight: 600; color: inherit; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">AI Analysis</h2>
                     ${
-                      accountInfo
-                        ? `
-                      <p style="
-                        margin: 2px 0 0 0;
-                        font-size: 12px;
-                        opacity: 0.7;
-                        color: inherit;
-                        white-space: nowrap;
-                        overflow: hidden;
-                        text-overflow: ellipsis;
-                      ">${accountInfo}</p>
-                    `
+                      selectionInfo
+                        ? `<p style="margin: 2px 0 0 0; font-size: 12px; opacity: 0.7; color: inherit; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${selectionInfo}</p>`
                         : ""
                     }
                   </div>
                 </div>
-                
-                <!-- Top right buttons area -->
-                <div style="
-                  display: flex;
-                  align-items: center;
-                  gap: 8px;
-                  flex-shrink: 0;
-                ">
+                <div style="display: flex; align-items: center; gap: 8px; flex-shrink: 0;">
           `;
 
-          // Add generate button or select account message to top right
+          // Add button based on configuration and validation state
           if (
             !props.connectionName ||
             !props.systemPrompt ||
             !props.userPrompt
           ) {
-            // Configuration needed - no button
             content += `
-              <div style="
-                background: #fff3cd;
-                border: 1px solid #ffeaa7;
-                border-radius: 6px;
-                padding: 6px 10px;
-                font-size: 11px;
-                color: #856404;
-                white-space: nowrap;
-              ">
+              <div style="background: #fff3cd; border: 1px solid #ffeaa7; border-radius: 6px; padding: 6px 10px; font-size: 11px; color: #856404; white-space: nowrap;">
                 ⚙️ Configuration Required
               </div>
             `;
           } else if (!validation.valid) {
-            // Account selection needed
             content += `
-              <button disabled style="
-                background: #e9ecef;
-                color: #6c757d;
-                border-radius: ${props.borderRadius || 8}px;
-                padding: 8px 12px;
-                font-size: 11px;
-                font-weight: 600;
-                border: none;
-                cursor: not-allowed;
-                display: flex;
-                align-items: center;
-                gap: 4px;
-                white-space: nowrap;
-              ">
+              <button disabled style="background: #e9ecef; color: #6c757d; border-radius: ${
+                props.borderRadius || 8
+              }px; padding: 8px 12px; font-size: 11px; font-weight: 600; border: none; cursor: not-allowed; display: flex; align-items: center; gap: 4px; white-space: nowrap;">
                 <span>🔒</span>
-                Select Account First
+                Selection Required
               </button>
             `;
           } else {
-            // Show generate button (will be managed by JavaScript state)
             content += `
-              <button id="generateButton" style="
-                ${buttonStyle}
-                box-shadow: 0 2px 8px rgba(102, 126, 234, 0.3);
-                display: flex;
-                align-items: center;
-                gap: 4px;
-              ">
+              <button id="generateButton" style="${buttonStyle} box-shadow: 0 2px 8px rgba(102, 126, 234, 0.3); display: flex; align-items: center; gap: 4px;">
                 <span style="font-size: 14px;">✨</span>
                 <span>Generate Analysis</span>
               </button>
             `;
           }
 
-          content += `
-                </div>
-              </div>
-          `;
+          content += `</div></div>`;
 
-          // Check if required configuration is missing
+          // Main content area
           if (
             !props.connectionName ||
             !props.systemPrompt ||
             !props.userPrompt
           ) {
-            // Show enhanced configuration needed state
+            // Configuration needed
             const missingItems = [];
             if (!props.connectionName) missingItems.push("Connection Name");
             if (!props.systemPrompt) missingItems.push("System Prompt");
             if (!props.userPrompt) missingItems.push("User Prompt");
 
             content += `
-              <div style="
-                flex: 1;
-                display: flex;
-                align-items: center;
-                justify-content: center;
-                background: #f8f9fa;
-                border: 2px dashed #dee2e6;
-                border-radius: 12px;
-                text-align: center;
-                color: #6c757d;
-                padding: 20px;
-                min-height: 150px;
-              ">
+              <div style="flex: 1; display: flex; align-items: center; justify-content: center; background: #f8f9fa; border: 2px dashed #dee2e6; border-radius: 12px; text-align: center; color: #6c757d; padding: 20px; min-height: 150px;">
                 <div style="max-width: 400px;">
                   <div style="font-size: 48px; margin-bottom: 12px; opacity: 0.3;">⚙️</div>
                   <h3 style="margin: 0 0 6px 0; color: #495057; font-size: 16px;">Configuration Required</h3>
                   <p style="margin: 0 0 8px 0; font-size: 13px;">Please configure the following in the properties panel:</p>
-                  <p style="margin: 0 0 12px 0; font-size: 13px; font-weight: 500; color: #dc3545;">
-                    ${missingItems.join(", ")}
-                  </p>
+                  <p style="margin: 0 0 12px 0; font-size: 13px; font-weight: 500; color: #dc3545;">${missingItems.join(
+                    ", "
+                  )}</p>
                   
-                  <div style="
-                    background: #e3f2fd;
-                    border: 1px solid #90caf9;
-                    border-radius: 8px;
-                    padding: 10px 12px;
-                    margin-top: 12px;
-                    font-size: 11px;
-                    color: #1565c0;
-                    text-align: left;
-                    line-height: 1.3;
-                  ">
-                    <div style="font-weight: 600; margin-bottom: 4px;">💡 Quick Setup Tips:</div>
+                  <div style="background: #e3f2fd; border: 1px solid #90caf9; border-radius: 8px; padding: 10px 12px; margin-top: 12px; font-size: 11px; color: #1565c0; text-align: left; line-height: 1.3;">
+                    <div style="font-weight: 600; margin-bottom: 4px;">💡 Quick Setup:</div>
                     <div>
-                      • Use <strong>{{fieldName}}</strong> in prompts for dynamic data<br>
-                      • Create Concat() measures in Qlik for multi-value fields<br>
-                      • Use Round() functions in measures for number formatting<br>
-                      • This extension works with any app - just configure your prompts!
+                      • Set your Claude SSE connection name<br>
+                      • Add system and user prompts with {{fieldName}} placeholders<br>
+                      • Enable custom validation with GetPossibleCount() expressions<br>
+                      • Use any field names from your data model
                     </div>
                   </div>
                 </div>
-              </div>
-            `;
-          } else if (props.showAdvancedUI) {
-            // Show advanced chat interface
-            content += `
-              <!-- Quick Prompt Buttons -->
-              <div style="
-                display: flex;
-                flex-wrap: wrap;
-                gap: 6px;
-                margin-bottom: 12px;
-                justify-content: flex-start;
-              ">
-                <button class="prompt-btn" data-template="shap_analysis" style="
-                  padding: 8px 14px;
-                  background: #ffffff;
-                  color: #374151;
-                  border: 1.5px solid #d1d5db;
-                  border-radius: 20px;
-                  cursor: pointer;
-                  font-size: 12px;
-                  text-align: center;
-                  transition: all 0.2s ease;
-                  font-weight: 500;
-                  white-space: nowrap;
-                  box-shadow: 0 1px 3px rgba(0,0,0,0.1);
-                ">
-                  What features impact churn the most?
-                </button>
-                
-                <button class="prompt-btn" data-template="customer_risk_profile" style="
-                  padding: 8px 14px;
-                  background: #ffffff;
-                  color: #374151;
-                  border: 1.5px solid #d1d5db;
-                  border-radius: 20px;
-                  cursor: pointer;
-                  font-size: 12px;
-                  text-align: center;
-                  transition: all 0.2s ease;
-                  font-weight: 500;
-                  white-space: nowrap;
-                  box-shadow: 0 1px 3px rgba(0,0,0,0.1);
-                ">
-                  Which customers are at highest risk?
-                </button>
-                
-                <button class="prompt-btn" data-template="customer_trends" style="
-                  padding: 8px 14px;
-                  background: #ffffff;
-                  color: #374151;
-                  border: 1.5px solid #d1d5db;
-                  border-radius: 20px;
-                  cursor: pointer;
-                  font-size: 12px;
-                  text-align: center;
-                  transition: all 0.2s ease;
-                  font-weight: 500;
-                  white-space: nowrap;
-                  box-shadow: 0 1px 3px rgba(0,0,0,0.1);
-                ">
-                  Analyze customer trends
-                </button>
-              </div>
-              
-              <!-- Chat Messages Container -->
-              <div id="llmResponse" style="
-                flex: 1;
-                overflow-y: scroll;
-                padding: 12px;
-                background: #f8f9fc;
-                border-radius: 12px;
-                font-size: 13px;
-                line-height: 1.5;
-                color: #212529;
-                margin-bottom: 12px;
-                height: 220px;
-                border: 1px solid #e9ecf3;
-                word-wrap: break-word;
-                overflow-wrap: break-word;
-                scrollbar-width: thin;
-                scrollbar-color: #9ca3af #f1f3f4;
-              ">
-                <!-- Initial AI message -->
-                <div style="
-                  display: flex;
-                  justify-content: flex-start;
-                  margin-bottom: 12px;
-                ">
-                  <div style="
-                    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-                    color: white;
-                    border-radius: 18px 18px 18px 4px;
-                    padding: 10px 14px;
-                    max-width: 85%;
-                    font-size: 12px;
-                    line-height: 1.4;
-                    box-shadow: 0 2px 8px rgba(102, 126, 234, 0.2);
-                    word-wrap: break-word;
-                    overflow-wrap: break-word;
-                  ">
-                    <div style="font-weight: 600; margin-bottom: 4px; opacity: 0.9;">🤖 AI Assistant</div>
-                    💡 Ready to analyze your customer data! Use the suggestions above or ask me anything below.
-                  </div>
-                </div>
-              </div>
-              
-              <!-- Chat input area -->
-              <div style="
-                display: flex;
-                gap: 8px;
-                align-items: flex-end;
-                background: white;
-                padding: 10px;
-                border-radius: 20px;
-                border: 1px solid #e9ecf3;
-                box-shadow: 0 2px 12px rgba(0,0,0,0.08);
-              ">
-                <textarea id="chatInput" placeholder="Type your question here..." style="
-                  flex: 1;
-                  padding: 10px 12px;
-                  border: none;
-                  border-radius: 16px;
-                  font-size: 13px;
-                  font-family: inherit;
-                  resize: none;
-                  min-height: 18px;
-                  max-height: 80px;
-                  background: #f8f9fc;
-                  color: #374151;
-                  outline: none;
-                  line-height: 1.4;
-                "></textarea>
-                
-                <button id="generateButtonChat" style="
-                  ${buttonStyle}
-                  min-width: 80px;
-                  border-radius: 16px;
-                  display: flex;
-                  align-items: center;
-                  justify-content: center;
-                  font-size: 12px;
-                  padding: 10px 16px;
-                  box-shadow: 0 2px 8px rgba(102, 126, 234, 0.3);
-                ">
-                  ✨ Generate
-                </button>
-                
-                <button id="clearButton" style="
-                  padding: 10px 12px;
-                  background: #f1f3f4;
-                  color: #5f6368;
-                  border: none;
-                  border-radius: 16px;
-                  cursor: pointer;
-                  font-size: 12px;
-                  font-weight: 500;
-                  transition: all 0.2s ease;
-                ">
-                  Clear
-                </button>
               </div>
             `;
           } else {
-            // Show simple interface
-            content += `
-              <!-- Simple interface -->
-              <div style="
-                flex: 1;
-                display: flex;
-                flex-direction: column;
-                gap: 10px;
-              ">
-            `;
+            // Show main interface
+            content += `<div style="flex: 1; display: flex; flex-direction: column; gap: 10px;">`;
 
             if (!validation.valid) {
-              // Show account selection guidance - No check mark, clean design
-              content += `
-                <!-- Account Selection Required -->
-                <div style="
-                  flex: 1;
-                  display: flex;
-                  align-items: center;
-                  justify-content: center;
-                  ${responseStyle}
-                  text-align: center;
-                  min-height: 150px;
-                  max-height: 350px;
-                ">
-                  <div style="max-width: 350px; padding: 20px;">
-                    <h3 style="margin: 0 0 6px 0; color: inherit; opacity: 0.9; font-size: 16px;">Select an Account ID</h3>
-                    <p style="margin: 0 0 10px 0; opacity: 0.7; font-size: 13px; line-height: 1.4;">
-                      ${
-                        validation.accountCount > 1
-                          ? `Please filter to select exactly one AccountID to generate AI insights.`
-                          : "Please select an AccountID from the filter panel to analyze customer data."
-                      }
-                    </p>                    
-                    <div style="
-                      background: #e3f2fd;
-                      border: 1px solid #90caf9;
-                      border-radius: 8px;
-                      padding: 10px;
-                      margin-top: 12px;
-                      font-size: 11px;
-                      color: #1565c0;
-                      text-align: left;
-                      line-height: 1.3;
-                    ">
-                      <div style="font-weight: 600; margin-bottom: 4px;">💡 How to select:</div>
-                      <div>
-                        • Click on an AccountID in the filter panel<br>
-                        • Use search to find a specific account<br>
-                        • Clear other selections to focus on one account
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              `;
+              content += generateValidationErrorHTML(validation, props);
             } else {
-              // Account is selected - show simple ready state
+              // Ready state
               content += `
-                <!-- Main message area -->
-                <div id="llmResponse" style="
-                  flex: 1;
-                  overflow-y: scroll;
-                  ${responseStyle}
-                  text-align: left;
-                  min-height: 180px;
-                  height: 280px;
-                  border: 1px solid #d4edda;
-                  background: #f8fff9;
-                  scrollbar-width: thin;
-                  scrollbar-color: #9ca3af #f1f3f4;
-                ">
-                  <div style="
-                    padding: 16px;
-                    color: #155724;
-                    text-align: center;
-                  ">
+                <div id="llmResponse" style="flex: 1; overflow-y: scroll; ${responseStyle} text-align: left; min-height: 180px; height: 280px; border: 1px solid #d4edda; background: #f8fff9; scrollbar-width: thin; scrollbar-color: #9ca3af #f1f3f4;">
+                  <div style="padding: 16px; color: #155724; text-align: center;">
                     <h3 style="margin: 0 0 6px 0; color: inherit; font-size: 16px; font-weight: 600;">Ready to Analyze</h3>
-                    <div style="
-                      background: rgba(21, 87, 36, 0.1);
-                      border-radius: 16px;
-                      padding: 6px 12px;
-                      margin: 6px auto 12px auto;
-                      font-size: 13px;
-                      font-weight: 500;
-                      display: inline-block;
-                    ">
-                      ${validation.fieldName}: <strong>${validation.selectedValue}</strong>
+                    <div style="background: rgba(21, 87, 36, 0.1); border-radius: 16px; padding: 6px 12px; margin: 6px auto 12px auto; font-size: 13px; font-weight: 500; display: inline-block;">
+                      ${
+                        validation.mode === "custom_expression"
+                          ? "Custom validation passed"
+                          : "Data ready"
+                      }
                     </div>
                     <p style="margin: 0; opacity: 0.8; font-size: 13px; line-height: 1.4;">
-                      Ready to analyze this customer's data<br>
+                      Ready to analyze the selected data<br>
                       <span style="font-size: 11px; opacity: 0.7;">Click the generate button above to start AI analysis</span>
                     </p>
                   </div>
@@ -716,41 +874,20 @@ export default function supernova() {
               `;
             }
 
-            // Close simple interface container
             content += `</div>`;
           }
 
-          // Close main container
           content += `</div>`;
 
-          // Set the generated HTML content
+          // Set HTML and add styles
           element.innerHTML = content;
 
-          // Add CSS styles
+          // Add CSS
           const style = document.createElement("style");
           style.textContent = `
-            .prompt-btn:hover {
-              background: #f8f9fc !important;
-              border-color: #667eea !important;
-              transform: translateY(-1px);
-              box-shadow: 0 2px 8px rgba(102, 126, 234, 0.15) !important;
-            }
-            .prompt-btn:active {
-              transform: translateY(0);
-              background: #667eea !important;
-              color: white !important;
-            }
-            #chatInput:focus {
-              background: #ffffff !important;
-              box-shadow: 0 0 0 2px rgba(102, 126, 234, 0.2) !important;
-            }
-            #generateButton:hover, #generateButtonChat:hover {
+            #generateButton:hover {
               transform: translateY(-1px);
               box-shadow: 0 4px 12px rgba(102, 126, 234, 0.5) !important;
-            }
-            #clearButton:hover {
-              background: #e8eaed !important;
-              transform: translateY(-1px);
             }
             
             @keyframes spin {
@@ -758,7 +895,6 @@ export default function supernova() {
               100% { transform: rotate(360deg); }
             }
             
-            /* Scrollbar styling for response areas */
             #llmResponse::-webkit-scrollbar {
               width: 12px;
             }
@@ -775,623 +911,47 @@ export default function supernova() {
             #llmResponse::-webkit-scrollbar-thumb:hover {
               background: #6b7280;
             }
-            #llmResponse::-webkit-scrollbar-thumb:active {
-              background: #4b5563;
-            }
-            
-            /* Use auto for proper scroll behavior */
-            #llmResponse {
-              overflow-y: auto !important;
-            }
-            
-            /* Additional scrollbar styling for analysis content */
-            .analysis-content::-webkit-scrollbar {
-              width: 10px;
-            }
-            .analysis-content::-webkit-scrollbar-track {
-              background: #f8f9fa;
-              border-radius: 5px;
-              margin: 2px;
-            }
-            .analysis-content::-webkit-scrollbar-thumb {
-              background: #9ca3af;
-              border-radius: 5px;
-              border: 1px solid #f8f9fa;
-            }
-            .analysis-content::-webkit-scrollbar-thumb:hover {
-              background: #6b7280;
-            }
-            
-            /* Use auto for proper scroll behavior */
-            .analysis-content {
-              overflow-y: auto !important;
-            }
-            
-            /* Enhanced bullet point styling */
-            .analysis-content {
-              text-indent: 0 !important;
-            }
-            
-            .analysis-content div {
-              margin: 0;
-              padding: 0;
-              text-indent: 0;
-            }
-            
-            /* Responsive design */
-            @media (max-width: 600px) {
-              .prompt-btn {
-                font-size: 11px !important;
-                padding: 6px 10px !important;
-              }
-              
-              #generateButton, #generateButtonChat {
-                font-size: 11px !important;
-                padding: 8px 12px !important;
-              }
-            }
           `;
           document.head.appendChild(style);
 
-          // Add event handlers
-          const generateButton = element.querySelector("#generateButton");
-          const generateButtonChat = element.querySelector(
-            "#generateButtonChat"
-          );
-          const clearButton = element.querySelector("#clearButton");
-          const responseDiv = element.querySelector("#llmResponse");
-          const chatInput = element.querySelector("#chatInput");
-          const promptButtons = element.querySelectorAll(".prompt-btn");
-
-          // Auto-resize textarea (if in advanced mode)
-          if (chatInput) {
-            chatInput.addEventListener("input", function () {
-              this.style.height = "auto";
-              this.style.height = Math.min(this.scrollHeight, 120) + "px";
-            });
-          }
-
-          // Prompt button handlers (advanced mode)
-          promptButtons.forEach((btn) => {
-            btn.onclick = async () => {
-              const templateType = btn.dataset.template;
-              if (templateType && templates[templateType]) {
-                // First validate single account/record selection
-                const validation = validateSingleAccount(layout);
-
-                if (!validation.valid) {
-                  // Show validation error
-                  responseDiv.innerHTML = `
-                    <div style="
-                      background: #fff3cd;
-                      border: 1px solid #ffeaa7;
-                      border-radius: 8px;
-                      padding: 16px;
-                      color: #856404;
-                      text-align: center;
-                      line-height: 1.5;
-                      word-wrap: break-word;
-                      overflow-wrap: break-word;
-                    ">
-                      <div style="font-size: 24px; margin-bottom: 8px;">⚠️</div>
-                      <h3 style="margin: 0 0 8px 0; color: inherit;">Selection Required</h3>
-                      <p style="margin: 0 0 12px 0; font-size: 14px;">${
-                        validation.message
-                      }</p>
-                      
-                      ${
-                        validation.accountCount > 1
-                          ? `
-                        <div style="
-                          background: #f8f9fa;
-                          border-radius: 6px;
-                          padding: 8px 12px;
-                          margin-top: 12px;
-                          font-size: 12px;
-                          color: #6c757d;
-                        ">
-                          <strong>Tip:</strong> Use filters or selections to narrow down to exactly one record before generating AI analysis.
-                        </div>
-                      `
-                          : ""
-                      }
-                    </div>
-                  `;
-                  return;
-                }
-
-                // Show user's action immediately
-                const buttonText = btn.textContent.trim();
-                responseDiv.innerHTML += `
-                  <!-- User message -->
-                  <div style="
-                    display: flex;
-                    justify-content: flex-end;
-                    margin-bottom: 12px;
-                  ">
-                    <div style="
-                      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-                      color: white;
-                      border-radius: 18px 18px 4px 18px;
-                      padding: 10px 16px;
-                      max-width: 75%;
-                      font-size: 13px;
-                      line-height: 1.4;
-                      box-shadow: 0 2px 8px rgba(102, 126, 234, 0.2);
-                      word-wrap: break-word;
-                      overflow-wrap: break-word;
-                    ">
-                      ${buttonText}
-                    </div>
-                  </div>
-                  
-                  <!-- Loading message -->
-                  <div id="loadingMsg" style="
-                    display: flex;
-                    justify-content: flex-start;
-                    margin-bottom: 12px;
-                  ">
-                    <div style="
-                      background: white;
-                      color: #6b7280;
-                      border-radius: 18px 18px 18px 4px;
-                      padding: 12px 16px;
-                      max-width: 85%;
-                      font-size: 13px;
-                      line-height: 1.4;
-                      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-                      border: 1px solid #e9ecf3;
-                      word-wrap: break-word;
-                      overflow-wrap: break-word;
-                    ">
-                      <div style="font-weight: 600; margin-bottom: 6px; color: #667eea; font-size: 12px;">🤖 AI Assistant</div>
-                      <div style="display: flex; align-items: center;">
-                        <div style="
-                          width: 12px;
-                          height: 12px;
-                          border: 2px solid #e5e7eb;
-                          border-top: 2px solid #667eea;
-                          border-radius: 50%;
-                          animation: spin 1s linear infinite;
-                          margin-right: 8px;
-                        "></div>
-                        Processing with Claude AI...
-                      </div>
-                    </div>
-                  </div>
-                `;
-
-                // Scroll to bottom
-                responseDiv.scrollTop = responseDiv.scrollHeight;
-
-                // Disable all prompt buttons during processing
-                promptButtons.forEach((button) => {
-                  button.disabled = true;
-                  button.style.opacity = "0.6";
-                  button.style.cursor = "not-allowed";
-                });
-
-                try {
-                  // Get template prompts
-                  const template = templates[templateType];
-                  let systemPrompt = template.system;
-                  let userPrompt = template.user;
-
-                  // Replace dynamic fields
-                  systemPrompt = replaceDynamicFields(systemPrompt, layout);
-                  userPrompt = replaceDynamicFields(userPrompt, layout);
-
-                  let fullPrompt = userPrompt;
-                  if (systemPrompt) {
-                    fullPrompt = systemPrompt + "\n\n" + userPrompt;
-                  }
-
-                  // Add data context if hypercube data is available
-                  if (layout.qHyperCube?.qDataPages?.[0]?.qMatrix?.length > 0) {
-                    fullPrompt += "\n\nData Context:\n";
-                    const matrix = layout.qHyperCube.qDataPages[0].qMatrix;
-
-                    // Add column headers if available
-                    if (
-                      layout.qHyperCube.qDimensionInfo?.length ||
-                      layout.qHyperCube.qMeasureInfo?.length
-                    ) {
-                      const headers = [
-                        ...layout.qHyperCube.qDimensionInfo.map(
-                          (d) => d.qFallbackTitle
-                        ),
-                        ...layout.qHyperCube.qMeasureInfo.map(
-                          (m) => m.qFallbackTitle
-                        ),
-                      ];
-                      fullPrompt += headers.join(", ") + "\n";
-                    }
-
-                    // Add data rows to prompt
-                    matrix.forEach((row, idx) => {
-                      if (idx < 100) {
-                        fullPrompt +=
-                          row
-                            .map((cell) => cell.qText || cell.qNum || "")
-                            .join(", ") + "\n";
-                      }
-                    });
-
-                    if (matrix.length > 100) {
-                      fullPrompt += `... and ${
-                        matrix.length - 100
-                      } more rows\n`;
-                    }
-                  }
-
-                  // Simplified escaping
-                  const escapedPrompt = fullPrompt
-                    .replace(/\\/g, "\\\\")
-                    .replace(/"/g, '\\"')
-                    .replace(/'/g, "\\'")
-                    .replace(/\n/g, "\\n")
-                    .replace(/\r/g, "\\r");
-
-                  // Build Qlik expression to call LLM endpoint
-                  const expression = `endpoints.ScriptEvalStr(
-                    '{"RequestType":"endpoint",
-                     "endpoint":{
-                       "connectionname":"${props.connectionName}",
-                       "column":"text",
-                       "parameters":{
-                         "temperature":"${props.temperature}",
-                         "Top K":"${props.topK}",
-                         "Top P":"${props.topP}",
-                         "max_tokens":"${props.maxTokens}"
-                       }}}',
-                    '${escapedPrompt}'
-                  )`;
-
-                  // Execute the expression via Qlik's evaluation API
-                  const response = await app.evaluate({
-                    qExpression: expression,
-                  });
-
-                  const responseText =
-                    response?.qText || response || "No response received";
-
-                  // Remove loading message
-                  const loadingMsg = responseDiv.querySelector("#loadingMsg");
-                  if (loadingMsg) {
-                    loadingMsg.remove();
-                  }
-
-                  // Add AI response
-                  responseDiv.innerHTML += `
-                    <!-- AI response -->
-                    <div style="
-                      display: flex;
-                      justify-content: flex-start;
-                      margin-bottom: 12px;
-                    ">
-                      <div style="
-                        background: white;
-                        color: #374151;
-                        border-radius: 18px 18px 18px 4px;
-                        padding: 12px 16px;
-                        max-width: 85%;
-                        font-size: 13px;
-                        line-height: 1.4;
-                        box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-                        border: 1px solid #e9ecf3;
-                        word-wrap: break-word;
-                        overflow-wrap: break-word;
-                      ">
-                        <div style="font-weight: 600; margin-bottom: 6px; color: #667eea; font-size: 12px;">🤖 AI Assistant</div>
-                        <div style="white-space: pre-wrap; word-wrap: break-word;">
-                          ${responseText.replace(/\n/g, "<br>")}
-                        </div>
-                      </div>
-                    </div>
-                  `;
-
-                  // Scroll to bottom
-                  responseDiv.scrollTop = responseDiv.scrollHeight;
-                } catch (err) {
-                  console.error("LLM Error:", err);
-
-                  // Remove loading message
-                  const loadingMsg = responseDiv.querySelector("#loadingMsg");
-                  if (loadingMsg) {
-                    loadingMsg.remove();
-                  }
-
-                  // Display error
-                  responseDiv.innerHTML += `
-                    <div style="
-                      display: flex;
-                      justify-content: flex-start;
-                      margin-bottom: 12px;
-                    ">
-                      <div style="
-                        background: #fef2f2;
-                        border: 1px solid #fca5a5;
-                        border-radius: 18px 18px 18px 4px;
-                        padding: 12px 16px;
-                        max-width: 85%;
-                        font-size: 13px;
-                        line-height: 1.4;
-                        color: #dc2626;
-                        word-wrap: break-word;
-                        overflow-wrap: break-word;
-                      ">
-                        <div style="font-weight: 600; margin-bottom: 6px; color: #dc2626; font-size: 12px;">🤖 AI Assistant</div>
-                        <div>
-                          <strong>⚠️ Error:</strong> ${
-                            err.message || "Failed to generate response"
-                          }
-                          <div style="margin-top: 4px; font-size: 11px; opacity: 0.8;">
-                            Check your connection name and ensure the Claude SSE endpoint is properly configured.
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  `;
-                } finally {
-                  // Re-enable all prompt buttons
-                  promptButtons.forEach((button) => {
-                    button.disabled = false;
-                    button.style.opacity = "1";
-                    button.style.cursor = "pointer";
-                  });
-                }
-              }
-            };
-          });
-
-          // Clear button handler
-          if (clearButton && responseDiv) {
-            clearButton.onclick = () => {
-              if (props.showAdvancedUI) {
-                // Reset to chat welcome message
-                responseDiv.innerHTML = `
-                  <div style="
-                    display: flex;
-                    justify-content: flex-start;
-                    margin-bottom: 12px;
-                  ">
-                    <div style="
-                      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-                      color: white;
-                      border-radius: 18px 18px 18px 4px;
-                      padding: 12px 16px;
-                      max-width: 85%;
-                      font-size: 13px;
-                      line-height: 1.4;
-                      box-shadow: 0 2px 8px rgba(102, 126, 234, 0.2);
-                      word-wrap: break-word;
-                      overflow-wrap: break-word;
-                    ">
-                      <div style="font-weight: 600; margin-bottom: 4px; opacity: 0.9;">🤖 AI Assistant</div>
-                      💡 Ready to analyze your customer data! Use the quick actions above or ask me anything below.
-                    </div>
-                  </div>
-                `;
-                if (chatInput) {
-                  chatInput.value = "";
-                  chatInput.style.height = "auto";
-                }
-              } else {
-                // Reset to simple welcome message
-                const validation = validateSingleAccount(layout);
-                if (validation.valid) {
-                  responseDiv.innerHTML = `
-                    <div style="
-                      padding: 16px;
-                      color: #155724;
-                      text-align: center;
-                    ">
-                      <h3 style="margin: 0 0 6px 0; color: inherit; font-size: 16px; font-weight: 600;">Ready to Analyze</h3>
-                      <div style="
-                        background: rgba(21, 87, 36, 0.1);
-                        border-radius: 16px;
-                        padding: 6px 12px;
-                        margin: 6px auto 12px auto;
-                        font-size: 13px;
-                        font-weight: 500;
-                        display: inline-block;
-                      ">
-                        ${validation.fieldName}: <strong>${validation.selectedValue}</strong>
-                      </div>
-                      <p style="margin: 0; opacity: 0.8; font-size: 13px; line-height: 1.4;">
-                        Ready to analyze this customer's data<br>
-                        <span style="font-size: 11px; opacity: 0.7;">Click the generate button above to start AI analysis</span>
-                      </p>
-                    </div>
-                  `;
-                }
-              }
-            };
-          }
-
-          // Enhanced Generate button handler with account validation
-          const handleGenerate = async (chatMode = false) => {
-            // First validate single account/record selection
-            const validation = validateSingleAccount(layout);
+          // Generate button handler
+          const handleGenerate = async () => {
+            const validation = await validateSelections(layout, app);
+            const responseDiv = element.querySelector("#llmResponse");
+            const generateButton = element.querySelector("#generateButton");
 
             if (!validation.valid) {
-              // Show validation error with helpful context
-              const errorMessage = `
-                <div style="
-                  background: #fff3cd;
-                  border: 1px solid #ffeaa7;
-                  border-radius: 8px;
-                  padding: 16px;
-                  color: #856404;
-                  text-align: center;
-                  line-height: 1.5;
-                  word-wrap: break-word;
-                  overflow-wrap: break-word;
-                ">
-                  <div style="font-size: 24px; margin-bottom: 8px;">⚠️</div>
-                  <h3 style="margin: 0 0 8px 0; color: inherit;">Selection Required</h3>
-                  <p style="margin: 0 0 12px 0; font-size: 14px;">${
-                    validation.message
-                  }</p>
-                  
-                  ${
-                    validation.accountCount > 1
-                      ? `
-                    <div style="
-                      background: #f8f9fa;
-                      border-radius: 6px;
-                      padding: 8px 12px;
-                      margin-top: 12px;
-                      font-size: 12px;
-                      color: #6c757d;
-                    ">
-                      <strong>Tip:</strong> Use filters or selections to narrow down to exactly one record before generating AI analysis.
-                    </div>
-                  `
-                      : ""
-                  }
-                </div>
-              `;
-              responseDiv.innerHTML = errorMessage;
+              if (responseDiv) {
+                responseDiv.innerHTML = generateValidationErrorHTML(
+                  validation,
+                  props
+                );
+              }
               return;
             }
 
-            // Disable buttons during processing
+            // Disable button and show loading
             if (generateButton) {
               generateButton.disabled = true;
               generateButton.style.background =
                 "linear-gradient(135deg, #9ca3af 0%, #6b7280 100%)";
               generateButton.innerHTML = `<span style="margin-right: 6px;">⏳</span><span>Analyzing...</span>`;
             }
-            if (generateButtonChat) {
-              generateButtonChat.disabled = true;
-              generateButtonChat.style.background =
-                "linear-gradient(135deg, #9ca3af 0%, #6b7280 100%)";
-              generateButtonChat.innerHTML = `⏳ Processing...`;
-            }
 
-            // Show loading state
-            if (chatMode && props.showAdvancedUI) {
-              // Add user message first
-              const userMessage =
-                chatInput && chatInput.value.trim()
-                  ? chatInput.value.trim()
-                  : "Generate analysis";
-
-              responseDiv.innerHTML += `
-                <!-- User message -->
-                <div style="
-                  display: flex;
-                  justify-content: flex-end;
-                  margin-bottom: 12px;
-                ">
-                  <div style="
-                    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-                    color: white;
-                    border-radius: 18px 18px 4px 18px;
-                    padding: 10px 16px;
-                    max-width: 75%;
-                    font-size: 13px;
-                    line-height: 1.4;
-                    box-shadow: 0 2px 8px rgba(102, 126, 234, 0.2);
-                    word-wrap: break-word;
-                    overflow-wrap: break-word;
-                  ">
-                    ${userMessage}
-                  </div>
-                </div>
-                
-                <!-- Loading message -->
-                <div id="loadingMsg" style="
-                  display: flex;
-                  justify-content: flex-start;
-                  margin-bottom: 12px;
-                ">
-                  <div style="
-                    background: white;
-                    color: #6b7280;
-                    border-radius: 18px 18px 18px 4px;
-                    padding: 12px 16px;
-                    max-width: 85%;
-                    font-size: 13px;
-                    line-height: 1.4;
-                    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-                    border: 1px solid #e9ecf3;
-                    word-wrap: break-word;
-                    overflow-wrap: break-word;
-                  ">
-                    <div style="font-weight: 600; margin-bottom: 6px; color: #667eea; font-size: 12px;">🤖 AI Assistant</div>
-                    <div style="display: flex; align-items: center;">
-                      <div style="
-                        width: 12px;
-                        height: 12px;
-                        border: 2px solid #e5e7eb;
-                        border-top: 2px solid #667eea;
-                        border-radius: 50%;
-                        animation: spin 1s linear infinite;
-                        margin-right: 8px;
-                      "></div>
-                      Processing with Claude AI...
-                    </div>
-                  </div>
-                </div>
-              `;
-
-              // Scroll to bottom
-              responseDiv.scrollTop = responseDiv.scrollHeight;
-            } else {
-              // Simple loading
+            if (responseDiv) {
               responseDiv.innerHTML = `
-                <div style="
-                  display: flex; 
-                  flex-direction: column; 
-                  align-items: center; 
-                  color: #6c757d;
-                  padding: 20px;
-                  text-align: center;
-                ">
-                  <div style="
-                    width: 24px;
-                    height: 24px;
-                    border: 3px solid #f3f3f3;
-                    border-top: 3px solid #667eea;
-                    border-radius: 50%;
-                    animation: spin 1s linear infinite;
-                    margin-bottom: 12px;
-                  "></div>
-                  <p style="margin: 0; font-size: 14px;">Analyzing ${validation.fieldName}: <strong>${validation.selectedValue}</strong></p>
-                  <p style="margin: 4px 0 0 0; font-size: 11px; opacity: 0.7;">Processing with Claude AI...</p>
+                <div style="display: flex; flex-direction: column; align-items: center; color: #6c757d; padding: 20px; text-align: center;">
+                  <div style="width: 24px; height: 24px; border: 3px solid #f3f3f3; border-top: 3px solid #667eea; border-radius: 50%; animation: spin 1s linear infinite; margin-bottom: 12px;"></div>
+                  <p style="margin: 0; font-size: 14px;">Analyzing your data...</p>
+                  <p style="margin: 4px 0 0 0; font-size: 11px; opacity: 0.7;">Processing with Claude AI</p>
                 </div>
               `;
             }
 
             try {
-              // Get prompts and replace dynamic fields using existing function
+              // Get and process prompts
               let systemPrompt = props.systemPrompt || "";
               let userPrompt = props.userPrompt || "";
-
-              // If advanced mode and chat input exists, use chat input
-              if (chatMode && props.showAdvancedUI && chatInput) {
-                const inputText = chatInput.value.trim();
-                if (inputText) {
-                  // Check if it's a template button
-                  const templateButton = Array.from(promptButtons).find(
-                    (btn) => btn.textContent.trim() === inputText.trim()
-                  );
-
-                  if (templateButton) {
-                    const templateType = templateButton.dataset.template;
-                    const template = templates[templateType];
-                    if (template) {
-                      systemPrompt = template.system;
-                      userPrompt = template.user;
-                    }
-                  } else {
-                    // Use custom input as user prompt
-                    userPrompt = inputText;
-                  }
-                }
-              }
 
               // Replace dynamic fields
               systemPrompt = replaceDynamicFields(systemPrompt, layout);
@@ -1402,12 +962,12 @@ export default function supernova() {
                 fullPrompt = systemPrompt + "\n\n" + userPrompt;
               }
 
-              // Add data context if hypercube data is available
+              // Add data context if available
               if (layout.qHyperCube?.qDataPages?.[0]?.qMatrix?.length > 0) {
                 fullPrompt += "\n\nData Context:\n";
                 const matrix = layout.qHyperCube.qDataPages[0].qMatrix;
 
-                // Add column headers if available
+                // Add headers
                 if (
                   layout.qHyperCube.qDimensionInfo?.length ||
                   layout.qHyperCube.qMeasureInfo?.length
@@ -1423,7 +983,7 @@ export default function supernova() {
                   fullPrompt += headers.join(", ") + "\n";
                 }
 
-                // Add data rows to prompt
+                // Add data rows
                 matrix.forEach((row, idx) => {
                   if (idx < 100) {
                     fullPrompt +=
@@ -1438,15 +998,15 @@ export default function supernova() {
                 }
               }
 
-              // Simplified escaping - only escape what's absolutely necessary
+              // Escape for JSON
               const escapedPrompt = fullPrompt
-                .replace(/\\/g, "\\\\") // Escape backslashes
-                .replace(/"/g, '\\"') // Escape double quotes
-                .replace(/'/g, "\\'") // Escape single quotes
-                .replace(/\n/g, "\\n") // Escape newlines
-                .replace(/\r/g, "\\r"); // Escape carriage returns
+                .replace(/\\/g, "\\\\")
+                .replace(/"/g, '\\"')
+                .replace(/'/g, "\\'")
+                .replace(/\n/g, "\\n")
+                .replace(/\r/g, "\\r");
 
-              // Build Qlik expression to call LLM endpoint
+              // Build expression
               const expression = `endpoints.ScriptEvalStr(
                 '{"RequestType":"endpoint",
                  "endpoint":{
@@ -1461,70 +1021,15 @@ export default function supernova() {
                 '${escapedPrompt}'
               )`;
 
-              // Execute the expression via Qlik's evaluation API
-              const response = await app.evaluate({
-                qExpression: expression,
-              });
-
+              // Execute
+              const response = await app.evaluate({ qExpression: expression });
               const responseText =
                 response?.qText || response || "No response received";
 
-              // Display response based on mode
-              if (chatMode && props.showAdvancedUI) {
-                // Remove loading message first
-                const loadingMsg = responseDiv.querySelector("#loadingMsg");
-                if (loadingMsg) {
-                  loadingMsg.remove();
-                }
-
-                // Add AI response
-                responseDiv.innerHTML += `
-                  <!-- AI response -->
-                  <div style="
-                    display: flex;
-                    justify-content: flex-start;
-                    margin-bottom: 12px;
-                  ">
-                    <div style="
-                      background: white;
-                      color: #374151;
-                      border-radius: 18px 18px 18px 4px;
-                      padding: 12px 16px;
-                      max-width: 85%;
-                      font-size: 13px;
-                      line-height: 1.4;
-                      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-                      border: 1px solid #e9ecf3;
-                      word-wrap: break-word;
-                      overflow-wrap: break-word;
-                    ">
-                      <div style="font-weight: 600; margin-bottom: 6px; color: #667eea; font-size: 12px;">🤖 AI Assistant</div>
-                      <div style="white-space: pre-wrap; word-wrap: break-word;">
-                        ${responseText.replace(/\n/g, "<br>")}
-                      </div>
-                    </div>
-                  </div>
-                `;
-
-                // Clear input and scroll to bottom
-                if (chatInput) {
-                  chatInput.value = "";
-                  chatInput.style.height = "auto";
-                }
-                responseDiv.scrollTop = responseDiv.scrollHeight;
-              } else {
-                // Simple response with record context
+              // Display result
+              if (responseDiv) {
                 responseDiv.innerHTML = `
-                  <div style="
-                    word-wrap: break-word; 
-                    line-height: 1.6;
-                    text-align: left;
-                    padding: 12px;
-                    overflow-y: scroll;
-                    height: 220px;
-                    scrollbar-width: thin;
-                    scrollbar-color: #9ca3af #f1f3f4;
-                  " class="analysis-content">
+                  <div style="word-wrap: break-word; line-height: 1.6; text-align: left; padding: 12px; overflow-y: scroll; height: 220px; scrollbar-width: thin; scrollbar-color: #9ca3af #f1f3f4;" class="analysis-content">
                     <div style="white-space: pre-wrap;">${responseText.replace(
                       /\n/g,
                       "<br>"
@@ -1535,41 +1040,19 @@ export default function supernova() {
             } catch (err) {
               console.error("LLM Error:", err);
 
-              // Display error based on mode
-              const errorMessage = `
-                <div style="
-                  background: #fef2f2;
-                  border: 1px solid #fca5a5;
-                  border-radius: 8px;
-                  padding: 12px;
-                  color: #dc2626;
-                  text-align: left;
-                  line-height: 1.5;
-                  font-size: 13px;
-                  word-wrap: break-word;
-                  overflow-wrap: break-word;
-                ">
-                  <div style="font-weight: 600; margin-bottom: 4px;">⚠️ Error</div>
-                  ${err.message || "Failed to generate response"}
-                  <div style="margin-top: 8px; font-size: 11px; opacity: 0.8;">
-                    Check your connection name and ensure the Claude SSE endpoint is properly configured.
+              if (responseDiv) {
+                responseDiv.innerHTML = `
+                  <div style="background: #fef2f2; border: 1px solid #fca5a5; border-radius: 8px; padding: 12px; color: #dc2626; text-align: left; line-height: 1.5; font-size: 13px; word-wrap: break-word; overflow-wrap: break-word;">
+                    <div style="font-weight: 600; margin-bottom: 4px;">⚠️ Error</div>
+                    ${err.message || "Failed to generate response"}
+                    <div style="margin-top: 8px; font-size: 11px; opacity: 0.8;">
+                      Check your connection name and ensure the Claude SSE endpoint is properly configured.
+                    </div>
                   </div>
-                </div>
-              `;
-
-              responseDiv.innerHTML = errorMessage;
-
-              // Keep button enabled on error so user can try again
-              if (generateButton) {
-                generateButton.disabled = false;
-                generateButton.style.background = `linear-gradient(135deg, ${
-                  props.buttonBackgroundColor || "#667eea"
-                } 0%, ${props.buttonBackgroundColor || "#764ba2"} 100%)`;
-                generateButton.innerHTML =
-                  '<span style="font-size: 14px;">✨</span><span>Generate Analysis</span>';
+                `;
               }
             } finally {
-              // Grey out the generate button after successful analysis (don't hide it)
+              // Complete button state
               if (generateButton) {
                 generateButton.disabled = true;
                 generateButton.style.background = "#e9ecef";
@@ -1577,45 +1060,20 @@ export default function supernova() {
                 generateButton.style.cursor = "not-allowed";
                 generateButton.style.boxShadow = "none";
                 generateButton.innerHTML =
-                  '<span style="font-size: 14px;"></span><span>Analysis Complete</span>';
+                  '<span style="font-size: 14px;">✅</span><span>Analysis Complete</span>';
               }
-              if (generateButtonChat) {
-                generateButtonChat.disabled = false;
-                generateButtonChat.style.background = `linear-gradient(135deg, ${
-                  props.buttonBackgroundColor || "#667eea"
-                } 0%, ${props.buttonBackgroundColor || "#764ba2"} 100%)`;
-                generateButtonChat.innerHTML = "✨ Generate";
-              }
-
-              // Don't trigger re-render to preserve the analysis content
             }
           };
 
-          // Generate button click handlers
+          // Add event listener
+          const generateButton = element.querySelector("#generateButton");
           if (generateButton) {
-            generateButton.onclick = () => handleGenerate(false);
-          }
-
-          if (generateButtonChat) {
-            generateButtonChat.onclick = () => handleGenerate(true);
-          }
-
-          // Enter key handler for chat input
-          if (chatInput) {
-            chatInput.addEventListener("keydown", (e) => {
-              if (e.key === "Enter" && !e.shiftKey) {
-                e.preventDefault();
-                if (generateButtonChat) {
-                  handleGenerate(true);
-                }
-              }
-            });
+            generateButton.onclick = handleGenerate;
           }
         };
 
-        // Execute render function
         render();
-      }, [element, layout, app]); // Re-run effect when dependencies change
+      }, [element, layout, app]); // This will re-run whenever layout changes (including filter selections)
     },
   };
 }

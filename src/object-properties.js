@@ -1,10 +1,11 @@
-// object-properties.js - QAE (Qlik Analytics Engine) configuration
+// object-properties.js - Streamlined configuration
 export default {
   // Standard Qlik object properties
   showTitles: true,
   title: "",
   subtitle: "",
   footnote: "",
+
   // Hypercube definition for data handling
   qHyperCubeDef: {
     qDimensions: [], // Array to store dimension definitions
@@ -17,29 +18,25 @@ export default {
       },
     ],
   },
-  // Custom properties for LLM configuration
+
+  // Custom properties for streamlined LLM configuration
   props: {
-    // Connection type selector
-    connectionType: "claude", // "claude" or "qlik-answers"
+    // Selection Validation
+    enableCustomValidation: false, // Enable custom validation
+    customValidationExpression: "", // Custom Qlik expression for validation
+    customValidationMessage:
+      "Please make the required selections to proceed with AI analysis", // Error message when validation fails
 
     // Claude-specific properties
-    connectionName: "Churn Analytics:Anthropic_Claude35Sonnet_ChurnML", // Claude connection name
+    connectionType: "claude", // Always Claude for this streamlined version
+    connectionName:
+      "CSO AI Practice - Churn ML Project Workspace:Anthropic_Claude35Sonnet_ChurnML", // Claude SSE connection name
     systemPrompt: "", // System-level instructions for Claude
-    userPrompt: "", // User's query/prompt for Claude
+    userPrompt: "", // User's query/prompt for Claude with {{fieldName}} placeholders
     temperature: 0.7, // Controls randomness in responses (0-1)
     topK: 250, // Limits vocabulary to top K tokens
     topP: 1, // Nucleus sampling parameter
     maxTokens: 1000, // Maximum response length
-
-    // Qlik Answers specific properties
-    qlikAnswersMode: "insight", // Analysis type for Qlik Answers
-    naturalLanguageQuery: "What are the key insights from this customer data?", // Natural language query
-    enableNaturalLanguage: true, // Enable natural language processing
-    includeChartSuggestions: true, // Include chart suggestions in responses
-    enableFollowUpQuestions: true, // Enable follow-up questions
-
-    // Advanced UI toggle
-    showAdvancedUI: false, // Show chat interface and template features
 
     // Styling properties
     headerBackgroundColor: "#ffffff",

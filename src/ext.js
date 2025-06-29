@@ -1,26 +1,91 @@
-// ext.js - Extension definition for property panel
+// Streamlined ext.js - Simple custom expression validation
 export default {
   definition: {
     type: "items",
-    component: "accordion", // Accordion-style property panel
+    component: "accordion",
     items: {
       // Standard data configuration section
       data: {
-        uses: "data", // Uses built-in data configuration
+        uses: "data",
       },
-      // Custom LLM configuration section
+
+      // Selection Validation Configuration
+      validation: {
+        type: "items",
+        label: "Selection Validation",
+        items: {
+          // Enable custom validation
+          enableCustomValidation: {
+            type: "boolean",
+            label: "Enable Custom Selection Validation",
+            ref: "props.enableCustomValidation",
+            defaultValue: false,
+          },
+
+          // Custom expression validation
+          customValidationExpression: {
+            type: "string",
+            component: "textarea",
+            label: "Custom Validation Expression",
+            ref: "props.customValidationExpression",
+            defaultValue: "GetPossibleCount([FieldName])=1",
+            show: function (data) {
+              return data.props?.enableCustomValidation === true;
+            },
+            rows: 3,
+          },
+
+          customValidationMessage: {
+            type: "string",
+            component: "textarea",
+            label: "Custom Validation Error Message",
+            ref: "props.customValidationMessage",
+            defaultValue:
+              "Please make the required selections to proceed with AI analysis",
+            show: function (data) {
+              return data.props?.enableCustomValidation === true;
+            },
+            rows: 2,
+          },
+
+          // Helper text with examples
+          validationHelp: {
+            type: "string",
+            component: "text",
+            label: "Expression Examples",
+            show: function (data) {
+              return data.props?.enableCustomValidation === true;
+            },
+          },
+
+          // Show examples as static text
+          validationExamples: {
+            type: "string",
+            component: "text",
+            label: "Common Patterns",
+            show: function (data) {
+              return data.props?.enableCustomValidation === true
+                ? "• Single selection: GetPossibleCount([FieldName])=1\n" +
+                    "• Two fields: GetPossibleCount([Customer])=1 and GetPossibleCount([Invoice])=1\n" +
+                    "• With conditions: GetPossibleCount([Account])=1 and Sum([Amount]) > 0\n" +
+                    "• Multiple allowed: GetPossibleCount([Region])>=1"
+                : false;
+            },
+          },
+        },
+      },
+
+      // LLM Configuration section
       settings: {
         type: "items",
         label: "LLM Configuration",
         items: {
-          // Version identifier for debugging
           extensionVersion: {
             type: "string",
             component: "text",
             label: "Extension Version",
-            show: "v2.0 - Dropdown Update",
+            show: "v3.0 - Streamlined Custom Expression",
           },
-          // Connection type dropdown field
           connectionType: {
             type: "string",
             component: "dropdown",
@@ -34,60 +99,48 @@ export default {
               },
             ],
           },
-          // Claude connection name (only for Claude)
           connectionName: {
             type: "string",
             label: "Claude Connection Name",
             ref: "props.connectionName",
-            defaultValue: "Churn Analytics:Anthropic_Claude35Sonnet_ChurnML",
+            defaultValue:
+              "CSO AI Practice - Churn ML Project Workspace:Anthropic_Claude35Sonnet_ChurnML",
             show: function (data) {
               return data.props?.connectionType === "claude";
             },
           },
-          // Connection info display (read-only helper text)
           connectionInfo: {
             type: "string",
             component: "text",
             label: "Service Info",
-            show: function (data) {
-              const connectionType = data.props?.connectionType || "claude";
-              if (connectionType === "qlik-answers") {
-                return "ℹ️ Uses Qlik's built-in AI assistant. No external connection required - works directly with your Qlik Cloud environment.";
-              } else {
-                return "ℹ️ Uses your external Claude SSE connection configured in QMC for advanced churn prediction analysis.";
-              }
-            },
+            show: "ℹ️ Uses your external Claude SSE connection configured in QMC for advanced analysis.",
           },
-          // System prompt textarea - large character limit
           systemPrompt: {
             type: "string",
             component: "textarea",
             label: "System Prompt",
             ref: "props.systemPrompt",
-            defaultValue: "", // No default value - developer must configure
+            defaultValue: "",
             show: function (data) {
-              // Only show for Claude
               const connectionType = data.props?.connectionType || "claude";
               return connectionType === "claude";
             },
-            maxlength: 5000, // Large character limit
+            maxlength: 8000,
+            rows: 6,
           },
-          // User prompt textarea - large character limit
           userPrompt: {
             type: "string",
             component: "textarea",
             label: "User Prompt",
             ref: "props.userPrompt",
-            defaultValue: "", // No default value - developer must configure
+            defaultValue: "",
             show: function (data) {
-              // Only show for Claude
               const connectionType = data.props?.connectionType || "claude";
               return connectionType === "claude";
             },
-            maxlength: 5000, // Large character limit
+            maxlength: 8000,
+            rows: 6,
           },
-
-          // Temperature slider control
           temperature: {
             type: "number",
             component: "slider",
@@ -98,12 +151,10 @@ export default {
             step: 0.1,
             defaultValue: 0.7,
             show: function (data) {
-              // Only show for Claude
               const connectionType = data.props?.connectionType || "claude";
               return connectionType === "claude";
             },
           },
-          // Top K parameter input
           topK: {
             type: "integer",
             label: "Top K",
@@ -112,12 +163,10 @@ export default {
             min: 1,
             max: 500,
             show: function (data) {
-              // Only show for Claude
               const connectionType = data.props?.connectionType || "claude";
               return connectionType === "claude";
             },
           },
-          // Top P parameter input
           topP: {
             type: "number",
             label: "Top P",
@@ -126,12 +175,10 @@ export default {
             min: 0,
             max: 1,
             show: function (data) {
-              // Only show for Claude
               const connectionType = data.props?.connectionType || "claude";
               return connectionType === "claude";
             },
           },
-          // Max tokens input
           maxTokens: {
             type: "integer",
             label: "Max Tokens",
@@ -140,45 +187,18 @@ export default {
             min: 100,
             max: 4000,
             show: function (data) {
-              // Only show for Claude
               const connectionType = data.props?.connectionType || "claude";
               return connectionType === "claude";
             },
           },
         },
       },
-      // Advanced Features section
-      advanced: {
-        type: "items",
-        label: "Advanced Features",
-        items: {
-          // Advanced UI toggle
-          showAdvancedUI: {
-            type: "boolean",
-            label: "Enable Advanced Chat Interface",
-            ref: "props.showAdvancedUI",
-            defaultValue: false,
-          },
-          // Qlik Answers specific advanced options
-          enableNaturalLanguage: {
-            type: "boolean",
-            label: "Enable Natural Language Processing",
-            ref: "props.enableNaturalLanguage",
-            defaultValue: true,
-            show: function (data) {
-              // Only show for Qlik Answers
-              const connectionType = data.props?.connectionType || "claude";
-              return connectionType === "qlik-answers";
-            },
-          },
-        },
-      },
+
       // Standard appearance settings
       appearance: {
         type: "items",
         label: "Appearance",
         items: {
-          // Header styling
           headerBackgroundColor: {
             type: "string",
             component: "color-picker",
@@ -193,7 +213,6 @@ export default {
             ref: "props.headerTextColor",
             defaultValue: "#1a1a1a",
           },
-          // Response area styling
           responseBackgroundColor: {
             type: "string",
             component: "color-picker",
@@ -215,7 +234,6 @@ export default {
             ref: "props.responseBorderColor",
             defaultValue: "#e9ecef",
           },
-          // Button styling
           buttonBackgroundColor: {
             type: "string",
             component: "color-picker",
@@ -230,7 +248,6 @@ export default {
             ref: "props.buttonTextColor",
             defaultValue: "#ffffff",
           },
-          // Typography and layout
           fontSize: {
             type: "integer",
             label: "Font Size",
@@ -272,10 +289,9 @@ export default {
       },
     },
   },
-  // Extension support capabilities
   support: {
-    snapshot: true, // Supports snapshots
-    export: true, // Supports export
-    exportData: false, // Doesn't support data export
+    snapshot: true,
+    export: true,
+    exportData: false,
   },
 };
