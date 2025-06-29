@@ -293,6 +293,7 @@ export default function supernova() {
                 display: flex;
                 align-items: center;
                 justify-content: space-between;
+                margin-bottom: 8px;
                 padding-bottom: 8px;
                 border-bottom: 1px solid #e0e0e0;
                 ${headerStyle}
@@ -522,7 +523,7 @@ export default function supernova() {
               <!-- Chat Messages Container -->
               <div id="llmResponse" style="
                 flex: 1;
-                overflow-y: auto;
+                overflow-y: scroll;
                 padding: 12px;
                 background: #f8f9fc;
                 border-radius: 12px;
@@ -530,7 +531,7 @@ export default function supernova() {
                 line-height: 1.5;
                 color: #212529;
                 margin-bottom: 12px;
-                height: 250px;
+                height: 220px;
                 border: 1px solid #e9ecf3;
                 word-wrap: break-word;
                 overflow-wrap: break-word;
@@ -679,11 +680,11 @@ export default function supernova() {
                 <!-- Main message area -->
                 <div id="llmResponse" style="
                   flex: 1;
-                  overflow-y: auto;
+                  overflow-y: scroll;
                   ${responseStyle}
                   text-align: left;
                   min-height: 180px;
-                  height: 320px;
+                  height: 280px;
                   border: 1px solid #d4edda;
                   background: #f8fff9;
                   scrollbar-width: thin;
@@ -804,6 +805,17 @@ export default function supernova() {
             /* Use auto for proper scroll behavior */
             .analysis-content {
               overflow-y: auto !important;
+            }
+            
+            /* Enhanced bullet point styling */
+            .analysis-content {
+              text-indent: 0 !important;
+            }
+            
+            .analysis-content div {
+              margin: 0;
+              padding: 0;
+              text-indent: 0;
             }
             
             /* Responsive design */
@@ -1504,30 +1516,19 @@ export default function supernova() {
                 // Simple response with record context
                 responseDiv.innerHTML = `
                   <div style="
-                    margin-bottom: 10px; 
-                    padding: 6px 10px; 
-                    background: #e8f5e8; 
-                    border-radius: 6px; 
-                    font-size: 11px; 
-                    color: #2e7d2e;
-                    text-align: center;
-                  ">
-                    <strong>Analysis for:</strong> ${validation.fieldName} = ${
-                  validation.selectedValue
-                }
-                  </div>
-                  <div style="
-                    white-space: pre-wrap; 
                     word-wrap: break-word; 
                     line-height: 1.6;
                     text-align: left;
                     padding: 12px;
-                    overflow-y: auto;
-                    height: 240px;
+                    overflow-y: scroll;
+                    height: 220px;
                     scrollbar-width: thin;
                     scrollbar-color: #9ca3af #f1f3f4;
                   " class="analysis-content">
-                    ${responseText.replace(/\n/g, "<br>")}
+                    <div style="white-space: pre-wrap;">${responseText.replace(
+                      /\n/g,
+                      "<br>"
+                    )}</div>
                   </div>
                 `;
               }
