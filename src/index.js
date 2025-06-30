@@ -215,15 +215,34 @@ export default function supernova() {
           // FIXED: Proper validation logic for Qlik expressions
           let isValid = false;
 
+          // For GetPossibleCount/GetSelectedCount expressions, Qlik returns -1 for true, 0 for false
+          // regardless of whether it's a simple or complex expression
           if (
+            customExpression.includes("GetPossibleCount") ||
+            customExpression.includes("GetSelectedCount")
+          ) {
+            // All Get*Count expressions return -1 for true, 0 for false
+            isValid = resultValue === -1;
+            console.log(
+              "Count expression validation:",
+              isValid,
+              "(-1 = true in Qlik)"
+            );
+          } else if (
             customExpression.toLowerCase().includes(" and ") ||
             customExpression.toLowerCase().includes(" or ")
           ) {
-            // Complex expression - Qlik returns -1 for true, 0 for false
+            // Other complex expressions
             isValid = resultValue === -1;
+            console.log(
+              "Complex expression validation:",
+              isValid,
+              "(-1 = true in Qlik)"
+            );
           } else {
-            // Simple expression - check for exact value
+            // Simple non-count expressions - check for exact value
             isValid = resultValue === 1 || resultValue === "1";
+            console.log("Simple expression validation:", isValid);
           }
 
           // Extract all fields for better error messaging
