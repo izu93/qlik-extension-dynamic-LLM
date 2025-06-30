@@ -1,4 +1,4 @@
-// Streamlined ext.js - Simple custom expression validation
+// Streamlined ext.js - Simple custom expression validation with fixed examples
 export default {
   definition: {
     type: "items",
@@ -28,7 +28,7 @@ export default {
             component: "textarea",
             label: "Custom Validation Expression",
             ref: "props.customValidationExpression",
-            defaultValue: "GetPossibleCount([FieldName])=1",
+            defaultValue: "GetSelectedCount(automl_feature)=1",
             show: function (data) {
               return data.props?.enableCustomValidation === true;
             },
@@ -48,29 +48,19 @@ export default {
             rows: 2,
           },
 
-          // Helper text with examples
+          // Helper text with examples - Using textarea for better display
           validationHelp: {
             type: "string",
-            component: "text",
+            component: "textarea",
             label: "Expression Examples",
+            ref: "props.validationHelp",
+            defaultValue:
+              "• Single selection: GetSelectedCount(automl_feature)=1\n• Multiple fields: GetSelectedCount(Customer)=1 and GetSelectedCount(Invoice)=1\n• With conditions: GetSelectedCount(Account)=1 and Sum(Amount) > 0\n• Multiple allowed: GetSelectedCount(Region)>=1\n• Alternative function: GetPossibleCount([FieldName])=1",
             show: function (data) {
               return data.props?.enableCustomValidation === true;
             },
-          },
-
-          // Show examples as static text
-          validationExamples: {
-            type: "string",
-            component: "text",
-            label: "Common Patterns",
-            show: function (data) {
-              return data.props?.enableCustomValidation === true
-                ? "• Single selection: GetPossibleCount([FieldName])=1\n" +
-                    "• Two fields: GetPossibleCount([Customer])=1 and GetPossibleCount([Invoice])=1\n" +
-                    "• With conditions: GetPossibleCount([Account])=1 and Sum([Amount]) > 0\n" +
-                    "• Multiple allowed: GetPossibleCount([Region])>=1"
-                : false;
-            },
+            rows: 6,
+            readOnly: true,
           },
         },
       },

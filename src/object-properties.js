@@ -26,6 +26,8 @@ export default {
     customValidationExpression: "", // Custom Qlik expression for validation
     customValidationMessage:
       "Please make the required selections to proceed with AI analysis", // Error message when validation fails
+    validationHelp:
+      "• Single selection: GetSelectedCount(automl_feature)=1\n• Multiple fields: GetSelectedCount(Customer)=1 and GetSelectedCount(Invoice)=1\n• With conditions: GetSelectedCount(Account)=1 and Sum(Amount) > 0\n• Multiple allowed: GetSelectedCount(Region)>=1\n• Alternative function: GetPossibleCount([FieldName])=1",
 
     // Claude-specific properties
     connectionType: "claude", // Always Claude for this streamlined version
