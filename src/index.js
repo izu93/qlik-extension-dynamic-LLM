@@ -469,7 +469,7 @@ export default function supernova() {
               color: #856404;
             ">
               <div style="max-width: 450px; padding: 20px;">
-                <div style="font-size: 24px; margin-bottom: 8px;">⚠️</div>
+                <div style="font-size: 24px; margin-bottom: 8px;"></div>
                 <h3 style="margin: 0 0 8px 0; color: inherit; font-size: 16px;">Selection Required</h3>
                 <p style="margin: 0 0 12px 0; font-size: 13px; line-height: 1.4;">
                   ${dynamicMessage}
@@ -557,7 +557,7 @@ export default function supernova() {
               color: #856404;
             ">
               <div style="max-width: 450px; padding: 20px;">
-                <div style="font-size: 24px; margin-bottom: 8px;">⚠️</div>
+                <div style="font-size: 24px; margin-bottom: 8px;"></div>
                 <h3 style="margin: 0 0 8px 0; color: inherit; font-size: 16px;">Selection Required</h3>
                 <p style="margin: 0 0 12px 0; font-size: 13px; line-height: 1.4;">
                   ${dynamicMessage}
@@ -566,27 +566,6 @@ export default function supernova() {
                 ${
                   validationResult.details && validationResult.details[0]
                     ? `
-                  <div style="
-                    background: rgba(133, 100, 4, 0.1);
-                    border-radius: 8px;
-                    padding: 12px;
-                    margin: 12px 0;
-                    text-align: left;
-                  ">
-                    <div style="font-weight: 600; margin-bottom: 6px; font-size: 12px;">📊 Field Status:</div>
-                    <div style="font-size: 11px;">
-                      <strong>Field:</strong> ${
-                        validationResult.details[0].fieldName || "Unknown"
-                      }<br>
-                      <strong>Current Values:</strong> ${
-                        validationResult.details[0].result || 0
-                      }<br>
-                      <strong>Required:</strong> ${
-                        validationResult.details[0].message ||
-                        "Single selection"
-                      }
-                    </div>
-                  </div>
                 `
                     : ""
                 }
@@ -653,7 +632,7 @@ export default function supernova() {
                   <div style="font-weight: 600; margin-bottom: 6px;">💡 Setup steps:</div>
                   <div>
                     1. Check "Enable Custom Selection Validation"<br>
-                    2. Add validation expression (e.g., GetSelectedCount(automl_feature)=1)<br>
+                    2. Add validation expression (e.g., GetSelectedCount(AccountID)=1)<br>
                     3. Configure custom error message<br>
                     4. Save and make your selections to enable AI analysis
                   </div>
@@ -682,7 +661,7 @@ export default function supernova() {
             color: #856404;
           ">
             <div style="max-width: 350px; padding: 20px;">
-              <div style="font-size: 24px; margin-bottom: 8px;">⚠️</div>
+              <div style="font-size: 24px; margin-bottom: 8px;"></div>
               <h3 style="margin: 0 0 8px 0; color: inherit; font-size: 16px;">Selection Required</h3>
               <p style="margin: 0 0 12px 0; font-size: 13px; line-height: 1.4;">
                 ${dynamicMessage}
@@ -797,7 +776,7 @@ export default function supernova() {
               <button disabled style="background: #e9ecef; color: #6c757d; border-radius: ${
                 props.borderRadius || 8
               }px; padding: 8px 12px; font-size: 11px; font-weight: 600; border: none; cursor: not-allowed; display: flex; align-items: center; gap: 4px; white-space: nowrap;">
-                <span>🔒</span>
+                <span>⚠️</span>
                 Selection Required
               </button>
             `;
@@ -1060,7 +1039,7 @@ export default function supernova() {
                 generateButton.style.cursor = "not-allowed";
                 generateButton.style.boxShadow = "none";
                 generateButton.innerHTML =
-                  '<span style="font-size: 14px;">✅</span><span>Analysis Complete</span>';
+                  '<span style="font-size: 14px;"></span><span>Analysis Complete</span>';
               }
             }
           };
