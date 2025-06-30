@@ -692,8 +692,8 @@ export default function supernova() {
           // And update the header div to remove extra margins and padding:
 
           let content = `
-              <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; height: 100%; box-sizing: border-box; display: flex; flex-direction: column; background: #ffffff; min-height: 200px; margin: 0; padding: 0; ${baseFontStyle}">
-                <div style="display: flex; align-items: center; justify-content: space-between; margin: 0; padding-bottom: 8px; border-bottom: 1px solid #e0e0e0; ${headerStyle} flex-wrap: wrap; gap: 8px;">
+              <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; height: 100%; box-sizing: border-box; display: flex; flex-direction: column; background: #ffffff; min-height: 200px; margin: 0; padding: 0;position: relative;top: 0;left: 0; ${baseFontStyle}">
+                <div style="display: flex; align-items: center; justify-content: space-between; margin: 0;  padding: 10px;padding-bottom: 8px;  border-bottom: 1px solid #e0e0e0; background: #ffffff; flex-wrap: wrap;gap: 8px;position: relative;top: 0;">
                   <div style="display: flex; align-items: center; flex: 1; min-width: 0;">
                     <span style="font-size: 20px; margin-right: 8px; flex-shrink: 0;">🤖</span>
                     <div style="min-width: 0; flex: 1;">
@@ -803,7 +803,38 @@ export default function supernova() {
           // Add CSS
           const style = document.createElement("style");
           style.textContent = `
-            #generateButton:hover {
+           /* Remove any default margins/padding that might affect positioning */
+            .qv-object-dynamicLLM {
+              margin: 0 !important;
+              padding: 0 !important;
+            }
+            
+            .qv-object-dynamicLLM > div:first-child {
+              margin-top: 0 !important;
+              padding-top: 0 !important;
+            }
+
+            /* Override the 28px height that's causing the extra space */
+            .qv-object-header.thin {
+              height: 0px !important;
+              min-height: 0px !important;
+              padding: 0 !important;
+              margin: 0 !important;
+              display: none !important;
+            }
+
+            .qv-object-dynamicLLM .qv-object-content-container {
+              margin: 0 !important;
+              padding: 0 !important;
+              top: 0 !important;
+            }
+
+            /* Hide any Qlik object header elements */
+            .qv-object-dynamicLLM .qv-object-header {
+              display: none !important;
+              height: 0 !important;
+            }
+          #generateButton:hover {
               transform: translateY(-1px);
               box-shadow: 0 4px 12px rgba(102, 126, 234, 0.5) !important;
             }
