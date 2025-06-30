@@ -40,17 +40,10 @@ export default {
     topP: 1, // Nucleus sampling parameter
     maxTokens: 1000, // Maximum response length
 
-    // Styling properties
-    headerBackgroundColor: "#ffffff",
-    headerTextColor: "#1a1a1a",
-    responseBackgroundColor: "#f8f9fa",
-    responseTextColor: "#212529",
-    responseBorderColor: "#e9ecef",
-    buttonBackgroundColor: "#667eea",
-    buttonTextColor: "#ffffff",
-    fontSize: 15,
-    borderRadius: 8,
-    padding: 20,
-    textAlignment: "left",
+    // Simplified styling properties - only font related
+    fontSize: 14,
+    fontColor: "#212529",
+    fontWeight: "normal",
+    fontStyle: "normal",
   },
 };

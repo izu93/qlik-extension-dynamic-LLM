@@ -644,63 +644,69 @@ export default function supernova() {
           const validation = await validateSelections(layout, app);
           const selectionInfo = getDynamicSelectionInfo(layout, validation);
 
+          // Base font styles that will be applied globally
+          const baseFontStyle = `
+              font-size: ${props.fontSize || 14}px;
+              font-weight: ${props.fontWeight || "normal"};
+              font-style: ${props.fontStyle || "normal"};
+              color: ${props.fontColor || "#212529"};
+          `;
+
           // Apply custom styling
           const headerStyle = `
-            background: ${props.headerBackgroundColor || "#ffffff"};
-            color: ${props.headerTextColor || "#1a1a1a"};
-            padding: ${Math.max(8, (props.padding || 15) - 7)}px;
-            border-radius: ${props.borderRadius || 8}px ${
-            props.borderRadius || 8
-          }px 0 0;
+            background: #ffffff;
+            padding: 10px;
+            border-radius: 8px 8px 0 0;
+            margin: 0;
+            ${baseFontStyle}
           `;
 
           const responseStyle = `
-            background: ${props.responseBackgroundColor || "#f8f9fa"};
-            color: ${props.responseTextColor || "#212529"};
-            border: 1px solid ${props.responseBorderColor || "#e9ecef"};
-            border-radius: ${props.borderRadius || 8}px;
-            padding: 16px;
-            font-size: ${props.fontSize || 14}px;
-            text-align: ${props.textAlignment || "left"};
-            line-height: 1.5;
-            margin: 0;
-            word-wrap: break-word;
-            overflow-wrap: break-word;
+          background: #f8f9fa;
+          border: 1px solid #e9ecef;
+          border-radius: 8px;
+          padding: 16px;
+          text-align: left;
+          line-height: 1.5;
+          margin: 0;
+          word-wrap: break-word;
+          overflow-wrap: break-word;
+          ${baseFontStyle}
           `;
 
           const buttonStyle = `
-            background: linear-gradient(135deg, ${
-              props.buttonBackgroundColor || "#667eea"
-            } 0%, ${props.buttonBackgroundColor || "#764ba2"} 100%);
-            color: ${props.buttonTextColor || "#ffffff"};
-            border-radius: ${props.borderRadius || 8}px;
-            padding: 10px 16px;
-            font-size: ${Math.max(12, (props.fontSize || 14) - 1)}px;
-            font-weight: 600;
-            border: none;
-            cursor: pointer;
-            transition: all 0.2s ease;
-            white-space: nowrap;
+          background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+          color: #ffffff;
+          border-radius: 8px;
+          padding: 10px 16px;
+          font-size: ${Math.max(12, (props.fontSize || 14) - 1)}px;
+          font-weight: ${props.fontWeight === "bold" ? "bold" : "600"};
+          font-style: ${props.fontStyle || "normal"};
+          border: none;
+          cursor: pointer;
+          transition: all 0.2s ease;
+          white-space: nowrap;
           `;
 
           // Build header
-          let content = `
-            <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; height: 100%; box-sizing: border-box; display: flex; flex-direction: column; background: #ffffff; min-height: 200px;">
-              <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; padding-bottom: 8px; border-bottom: 1px solid #e0e0e0; ${headerStyle} flex-wrap: wrap; gap: 8px;">
-                <div style="display: flex; align-items: center; flex: 1; min-width: 0;">
-                  <span style="font-size: 20px; margin-right: 8px; flex-shrink: 0;">🤖</span>
-                  <div style="min-width: 0; flex: 1;">
-                    <h2 style="margin: 0; font-size: 16px; font-weight: 600; color: inherit; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">AI Analysis</h2>
-                    ${
-                      selectionInfo
-                        ? `<p style="margin: 2px 0 0 0; font-size: 12px; opacity: 0.7; color: inherit; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${selectionInfo}</p>`
-                        : ""
-                    }
-                  </div>
-                </div>
-                <div style="display: flex; align-items: center; gap: 8px; flex-shrink: 0;">
-          `;
+          // And update the header div to remove extra margins and padding:
 
+          let content = `
+              <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; height: 100%; box-sizing: border-box; display: flex; flex-direction: column; background: #ffffff; min-height: 200px; margin: 0; padding: 0; ${baseFontStyle}">
+                <div style="display: flex; align-items: center; justify-content: space-between; margin: 0; padding-bottom: 8px; border-bottom: 1px solid #e0e0e0; ${headerStyle} flex-wrap: wrap; gap: 8px;">
+                  <div style="display: flex; align-items: center; flex: 1; min-width: 0;">
+                    <span style="font-size: 20px; margin-right: 8px; flex-shrink: 0;">🤖</span>
+                    <div style="min-width: 0; flex: 1;">
+                      <h2 style="margin: 0; font-size: 16px; font-weight: 600; color: inherit; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">AI Analysis</h2>
+                      ${
+                        selectionInfo
+                          ? `<p style="margin: 2px 0 0 0; font-size: 12px; opacity: 0.7; color: inherit; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${selectionInfo}</p>`
+                          : ""
+                      }
+                    </div>
+                  </div>
+                  <div style="display: flex; align-items: center; gap: 8px; flex-shrink: 0;">
+            `;
           // Add button based on configuration and validation state
           if (
             !props.connectionName ||
