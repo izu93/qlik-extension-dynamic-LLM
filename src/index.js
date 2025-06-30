@@ -16,21 +16,28 @@ export default function supernova() {
       const layout = useLayout();
       const app = useApp();
 
-      // Helper function to extract field name from custom expression
-      const extractFieldNameFromExpression = (customExpression) => {
-        if (!customExpression) return null;
+      // Enhanced field extraction that handles multiple fields
+      const extractAllFieldsFromExpression = (customExpression) => {
+        if (!customExpression) return [];
 
-        // Try to extract field name from expressions like:
-        // GetSelectedCount(AccountID)=1
-        // GetPossibleCount([automl_feature])=1
-        // GetSelectedCount(CustomerName)=1
-        const fieldMatch = customExpression.match(
-          /Get(?:Selected|Possible)Count\s*\(\s*\[?([^\])\s]+)\]?\s*\)/i
+        // Find all GetSelectedCount() and GetPossibleCount() functions
+        const fieldMatches = customExpression.match(
+          /Get(?:Selected|Possible)Count\s*\(\s*\[?([^\])\s]+)\]?\s*\)/gi
         );
-        if (fieldMatch) {
-          return fieldMatch[1].trim();
+
+        if (fieldMatches) {
+          const fields = fieldMatches
+            .map((match) => {
+              const fieldMatch = match.match(
+                /Get(?:Selected|Possible)Count\s*\(\s*\[?([^\])\s]+)\]?\s*\)/i
+              );
+              return fieldMatch ? fieldMatch[1].trim() : null;
+            })
+            .filter((field) => field !== null);
+          return fields;
         }
-        return null;
+
+        return [];
       };
 
       // Alternative validation using hypercube data - fully dynamic based on expression
@@ -169,51 +176,59 @@ export default function supernova() {
         }
 
         try {
-          // Debug: Log the expression being evaluated
-          console.log("Evaluating expression:", customExpression);
-
           // Evaluate the custom expression with current data state
           const result = await app.evaluate({
             qExpression: customExpression,
           });
 
-          // Debug: Log the result
-          console.log("Expression result:", result);
+          // FIXED: Better result parsing
+          let resultValue;
 
-          // Get the actual result value - handle both qNum and qText
-          let resultValue = result?.qNum;
-          if (resultValue === undefined || resultValue === null) {
-            resultValue = result?.qText;
+          // Try to get the numeric result first
+          if (result && typeof result.qNum === "number") {
+            resultValue = result.qNum;
           }
-
-          // For debugging, also try to parse text as number
-          if (typeof resultValue === "string" && !isNaN(resultValue)) {
-            resultValue = parseInt(resultValue);
-          }
-
-          console.log("Parsed result value:", resultValue, typeof resultValue);
-
-          // If result is -1 or undefined, fall back to hypercube validation
-          if (
-            resultValue === -1 ||
-            resultValue === undefined ||
-            resultValue === null
+          // Then try text result
+          else if (
+            result &&
+            result.qText !== undefined &&
+            result.qText !== null
           ) {
-            console.log(
-              "Expression evaluation failed, falling back to hypercube validation"
-            );
-            return validateUsingHypercubeData(layout, props);
+            resultValue = result.qText;
+            // Try to parse text as number if it looks like a number
+            if (typeof resultValue === "string" && !isNaN(resultValue)) {
+              resultValue = parseInt(resultValue);
+            }
+          }
+          // Handle direct result values
+          else if (typeof result === "number") {
+            resultValue = result;
+          } else if (typeof result === "string") {
+            resultValue = result;
+            if (!isNaN(resultValue)) {
+              resultValue = parseInt(resultValue);
+            }
+          } else {
+            resultValue = result;
           }
 
-          // Consider it valid if result is exactly 1
-          const isValid = resultValue === 1 || resultValue === "1";
+          // FIXED: Proper validation logic for Qlik expressions
+          let isValid = false;
 
-          console.log(
-            "Validation result:",
-            isValid,
-            "from value:",
-            resultValue
-          );
+          if (
+            customExpression.toLowerCase().includes(" and ") ||
+            customExpression.toLowerCase().includes(" or ")
+          ) {
+            // Complex expression - Qlik returns -1 for true, 0 for false
+            isValid = resultValue === -1;
+          } else {
+            // Simple expression - check for exact value
+            isValid = resultValue === 1 || resultValue === "1";
+          }
+
+          // Extract all fields for better error messaging
+          const allFields = extractAllFieldsFromExpression(customExpression);
+          const primaryField = allFields.length > 0 ? allFields[0] : null;
 
           return {
             valid: isValid,
@@ -224,14 +239,14 @@ export default function supernova() {
                 valid: isValid,
                 message: isValid
                   ? `Expression result: ${resultValue} (Valid)`
-                  : `Expression result: ${resultValue} (Invalid - expected 1)`,
+                  : `Expression result: ${resultValue} (Invalid - expected -1 for complex expressions)`,
                 expression: customExpression,
                 result: resultValue,
-                fieldName: extractFieldNameFromExpression(customExpression), // Add field name extraction
-                suggestion:
-                  resultValue === 0
-                    ? "Make a selection in the filter to get result = 1"
-                    : "",
+                fieldName: primaryField, // Use primary field for error display
+                allFields: allFields, // Include all fields for debugging
+                suggestion: !isValid
+                  ? `Make selections in: ${allFields.join(", ")}`
+                  : "",
               },
             ],
             mode: "custom_expression",
@@ -414,284 +429,191 @@ export default function supernova() {
       // Validation error display
       const generateValidationErrorHTML = (validationResult, props) => {
         const responseStyle = `
-          background: ${props.responseBackgroundColor || "#f8f9fa"};
-          color: ${props.responseTextColor || "#212529"};
-          border: 1px solid ${props.responseBorderColor || "#e9ecef"};
-          border-radius: ${props.borderRadius || 8}px;
-          padding: 16px;
-          font-size: ${props.fontSize || 14}px;
-          text-align: ${props.textAlignment || "left"};
-          line-height: 1.5;
-          margin: 0;
-          word-wrap: break-word;
-          overflow-wrap: break-word;
-        `;
+    background: ${props.responseBackgroundColor || "#f8f9fa"};
+    color: ${props.responseTextColor || "#212529"};
+    border: 1px solid ${props.responseBorderColor || "#e9ecef"};
+    border-radius: ${props.borderRadius || 8}px;
+    padding: 16px;
+    font-size: ${props.fontSize || 14}px;
+    text-align: ${props.textAlignment || "left"};
+    line-height: 1.5;
+    margin: 0;
+    word-wrap: break-word;
+    overflow-wrap: break-word;
+  `;
 
-        // Extract field name from validation details for dynamic messaging
-        const getFieldNameFromValidation = (validationResult) => {
+        // Get all fields from validation details
+        const getAllFieldsFromValidation = (validationResult) => {
           if (
             validationResult.details &&
-            validationResult.details[0]?.fieldName
+            validationResult.details[0]?.allFields
           ) {
-            return validationResult.details[0].fieldName;
+            return validationResult.details[0].allFields;
           }
-          return null;
-        };
-
-        // Generate dynamic error message based on field name
-        const getDynamicErrorMessage = (validationResult) => {
-          const fieldName = getFieldNameFromValidation(validationResult);
-          if (fieldName) {
-            return `Please make the required selection in <strong>${fieldName}</strong> to proceed with AI analysis`;
-          }
-          return (
-            validationResult.message ||
-            "Please make the required selections to proceed with AI analysis"
-          );
+          return [];
         };
 
         if (validationResult.mode === "custom_expression") {
-          const fieldName = getFieldNameFromValidation(validationResult);
-          const dynamicMessage = getDynamicErrorMessage(validationResult);
+          const allFields = getAllFieldsFromValidation(validationResult);
 
           return `
-            <div style="
-              flex: 1;
-              display: flex;
-              align-items: center;
-              justify-content: center;
-              ${responseStyle}
-              text-align: center;
-              min-height: 150px;
-              max-height: 350px;
-              border-color: #ffeaa7;
-              background: #fff3cd;
-              color: #856404;
-            ">
-              <div style="max-width: 450px; padding: 20px;">
-                <div style="font-size: 24px; margin-bottom: 8px;"></div>
-                <h3 style="margin: 0 0 8px 0; color: inherit; font-size: 16px;">Selection Required</h3>
-                <p style="margin: 0 0 12px 0; font-size: 13px; line-height: 1.4;">
-                  ${dynamicMessage}
-                </p>
-                
-                <div style="
-                  background: rgba(133, 100, 4, 0.1);
-                  border-radius: 8px;
-                  padding: 12px;
-                  margin: 12px 0;
-                  text-align: left;
-                ">
-                  <div style="font-weight: 600; margin-bottom: 6px; font-size: 12px;">🔍 Validation Rule:</div>
-                  <div style="font-size: 11px; font-family: monospace; background: rgba(0,0,0,0.1); padding: 6px 8px; border-radius: 4px; word-break: break-all; line-height: 1.3;">
-                    ${
-                      validationResult.details[0]?.expression ||
-                      "Custom expression"
-                    }
-                  </div>
-                  ${
-                    validationResult.details[0]?.result !== undefined
-                      ? `
-                    <div style="font-size: 11px; margin-top: 6px;">
-                      <strong>Result:</strong> ${
-                        validationResult.details[0].result
-                      } 
-                      ${
-                        validationResult.details[0]?.error
-                          ? `<br><strong>Error:</strong> ${validationResult.details[0].error}`
-                          : ""
-                      }
-                      ${
-                        validationResult.details[0]?.suggestion
-                          ? `<br><strong>💡 Suggestion:</strong> ${validationResult.details[0].suggestion}`
-                          : ""
-                      }
-                    </div>
-                  `
-                      : ""
-                  }
-                </div>
-                
-                <div style="
-                  background: #e3f2fd;
-                  border: 1px solid #90caf9;
-                  border-radius: 8px;
-                  padding: 12px;
-                  margin-top: 12px;
-                  font-size: 11px;
-                  color: #1565c0;
-                  text-align: left;
-                  line-height: 1.3;
-                ">
-                  <div style="font-weight: 600; margin-bottom: 6px;">💡 How to fix:</div>
-                  <div>
-                    ${
-                      fieldName
-                        ? `Make a selection in <strong>${fieldName}</strong> to satisfy the validation expression above. The AI analysis will become available once the condition is met.`
-                        : `Make the required selections in your app to satisfy the validation expression above. The AI analysis will become available once all conditions are met.`
-                    }
-                  </div>
-                </div>
-              </div>
+      <div style="
+        flex: 1;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        ${responseStyle}
+        text-align: center;
+        min-height: 150px;
+        max-height: 350px;
+        border-color: #ffeaa7;
+        background: #fff3cd;
+        color: #856404;
+      ">
+        <div style="max-width: 450px; padding: 20px;">
+          ${
+            allFields.length > 0
+              ? `
+            <div style="font-size: 13px; line-height: 1.4;">
+              <strong>💡 Make selections in:</strong> ${allFields.join(", ")}
             </div>
-          `;
+          `
+              : `
+            <div style="font-size: 13px; line-height: 1.4;">
+              <strong>💡 Make the required selections to proceed</strong>
+            </div>
+          `
+          }
+        </div>
+      </div>
+    `;
         }
 
         // For hypercube validation errors
         if (validationResult.mode === "hypercube_validation") {
-          const fieldName = getFieldNameFromValidation(validationResult);
-          const dynamicMessage = getDynamicErrorMessage(validationResult);
+          const allFields = getAllFieldsFromValidation(validationResult);
 
           return `
-            <div style="
-              flex: 1;
-              display: flex;
-              align-items: center;
-              justify-content: center;
-              ${responseStyle}
-              text-align: center;
-              min-height: 150px;
-              max-height: 350px;
-              border-color: #ffeaa7;
-              background: #fff3cd;
-              color: #856404;
-            ">
-              <div style="max-width: 450px; padding: 20px;">
-                <div style="font-size: 24px; margin-bottom: 8px;"></div>
-                <h3 style="margin: 0 0 8px 0; color: inherit; font-size: 16px;">Selection Required</h3>
-                <p style="margin: 0 0 12px 0; font-size: 13px; line-height: 1.4;">
-                  ${dynamicMessage}
-                </p>
-                
-                ${
-                  validationResult.details && validationResult.details[0]
-                    ? `
-                `
-                    : ""
+      <div style="
+        flex: 1;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        ${responseStyle}
+        text-align: center;
+        min-height: 150px;
+        max-height: 350px;
+        border-color: #ffeaa7;
+        background: #fff3cd;
+        color: #856404;
+      ">
+        <div style="max-width: 450px; padding: 20px;">
+          <div style="font-size: 24px; margin-bottom: 8px;">⚠️</div>
+          <h3 style="margin: 0 0 8px 0; color: inherit; font-size: 16px;">Selection Required</h3>
+          
+          <div style="
+            background: rgba(133, 100, 4, 0.1);
+            border-radius: 8px;
+            padding: 12px;
+            margin: 12px 0;
+            text-align: left;
+          ">
+            <div style="font-weight: 600; margin-bottom: 6px; font-size: 12px;">📊 Field Status</div>
+            ${
+              validationResult.details && validationResult.details[0]
+                ? `
+              <div style="font-size: 11px;">
+                <strong>Field:</strong> ${
+                  validationResult.details[0].fieldName || "Unknown"
+                }<br>
+                <strong>Status:</strong> ${
+                  validationResult.details[0].message || "Selection needed"
                 }
-                
-                <div style="
-                  background: #e3f2fd;
-                  border: 1px solid #90caf9;
-                  border-radius: 8px;
-                  padding: 12px;
-                  margin-top: 12px;
-                  font-size: 11px;
-                  color: #1565c0;
-                  text-align: left;
-                  line-height: 1.3;
-                ">
-                  <div style="font-weight: 600; margin-bottom: 6px;">💡 How to select:</div>
-                  <div>
-                    ${
-                      fieldName
-                        ? `• Use the filters to make a selection in <strong>${fieldName}</strong><br>• Check that only one value is selected<br>• Ensure the selection satisfies the validation condition`
-                        : `• Use the filters to make the required selections<br>• Check the validation rule for specific requirements<br>• Make sure your selections satisfy the conditions`
-                    }
-                  </div>
-                </div>
               </div>
-            </div>
-          `;
+            `
+                : ""
+            }
+          </div>
+        </div>
+      </div>
+    `;
         }
 
         // Basic validation error for when custom validation is disabled
         if (validationResult.requiresValidationSetup) {
           return `
-            <div style="
-              flex: 1;
-              display: flex;
-              align-items: center;
-              justify-content: center;
-              ${responseStyle}
-              text-align: center;
-              min-height: 150px;
-              max-height: 350px;
-              border-color: #ffeaa7;
-              background: #fff3cd;
-              color: #856404;
-            ">
-              <div style="max-width: 400px; padding: 20px;">
-                <div style="font-size: 24px; margin-bottom: 8px;">⚙️</div>
-                <h3 style="margin: 0 0 8px 0; color: inherit; font-size: 16px;">Validation Setup Required</h3>
-                <p style="margin: 0 0 12px 0; font-size: 13px; line-height: 1.4;">
-                  Please enable custom selection validation and configure validation rules to use AI analysis
-                </p>
-                
-                <div style="
-                  background: #e3f2fd;
-                  border: 1px solid #90caf9;
-                  border-radius: 8px;
-                  padding: 12px;
-                  margin-top: 12px;
-                  font-size: 11px;
-                  color: #1565c0;
-                  text-align: left;
-                  line-height: 1.3;
-                ">
-                  <div style="font-weight: 600; margin-bottom: 6px;">💡 Setup steps:</div>
-                  <div>
-                    1. Check "Enable Custom Selection Validation"<br>
-                    2. Add validation expression (e.g., GetSelectedCount(AccountID)=1)<br>
-                    3. Configure custom error message<br>
-                    4. Save and make your selections to enable AI analysis
-                  </div>
-                </div>
-              </div>
+      <div style="
+        flex: 1;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        ${responseStyle}
+        text-align: center;
+        min-height: 150px;
+        max-height: 350px;
+        border-color: #ffeaa7;
+        background: #fff3cd;
+        color: #856404;
+      ">
+        <div style="max-width: 400px; padding: 20px;">
+          <div style="font-size: 24px; margin-bottom: 8px;">⚙️</div>
+          <h3 style="margin: 0 0 8px 0; color: inherit; font-size: 16px;">Validation Setup Required</h3>
+          <p style="margin: 0 0 12px 0; font-size: 13px; line-height: 1.4;">
+            Please enable custom selection validation and configure validation rules to use AI analysis
+          </p>
+          
+          <div style="
+            background: #e3f2fd;
+            border: 1px solid #90caf9;
+            border-radius: 8px;
+            padding: 12px;
+            margin-top: 12px;
+            font-size: 11px;
+            color: #1565c0;
+            text-align: left;
+            line-height: 1.3;
+          ">
+            <div style="font-weight: 600; margin-bottom: 6px;">💡 Setup steps:</div>
+            <div>
+              1. Check "Enable Custom Selection Validation"<br>
+              2. Add validation expression (e.g., GetPossibleCount(AccountID)=1)<br>
+              3. Configure custom error message<br>
+              4. Save and make your selections to enable AI analysis
             </div>
-          `;
+          </div>
+        </div>
+      </div>
+    `;
         }
 
         // Default fallback error
-        const fieldName = getFieldNameFromValidation(validationResult);
-        const dynamicMessage = getDynamicErrorMessage(validationResult);
-
         return `
-          <div style="
-            flex: 1;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            ${responseStyle}
-            text-align: center;
-            min-height: 150px;
-            max-height: 350px;
-            border-color: #ffeaa7;
-            background: #fff3cd;
-            color: #856404;
-          ">
-            <div style="max-width: 350px; padding: 20px;">
-              <div style="font-size: 24px; margin-bottom: 8px;"></div>
-              <h3 style="margin: 0 0 8px 0; color: inherit; font-size: 16px;">Selection Required</h3>
-              <p style="margin: 0 0 12px 0; font-size: 13px; line-height: 1.4;">
-                ${dynamicMessage}
-              </p>
-              
-              <div style="
-                background: #e3f2fd;
-                border: 1px solid #90caf9;
-                border-radius: 8px;
-                padding: 12px;
-                margin-top: 12px;
-                font-size: 11px;
-                color: #1565c0;
-                text-align: left;
-                line-height: 1.3;
-              ">
-                <div style="font-weight: 600; margin-bottom: 6px;">💡 How to select:</div>
-                <div>
-                  ${
-                    fieldName
-                      ? `• Use the filters to make a selection in <strong>${fieldName}</strong><br>• Check the validation rule for specific requirements<br>• Make sure your selections satisfy the conditions`
-                      : `• Use the filters to make the required selections<br>• Check the validation rule for specific requirements<br>• Make sure your selections satisfy the conditions`
-                  }
-                </div>
-              </div>
-            </div>
-          </div>
-        `;
+    <div style="
+      flex: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      ${responseStyle}
+      text-align: center;
+      min-height: 150px;
+      max-height: 350px;
+      border-color: #ffeaa7;
+      background: #fff3cd;
+      color: #856404;
+    ">
+      <div style="max-width: 350px; padding: 20px;">
+        <div style="font-size: 24px; margin-bottom: 8px;">⚠️</div>
+        <h3 style="margin: 0 0 8px 0; color: inherit; font-size: 16px;">Selection Required</h3>
+        <p style="margin: 0 0 12px 0; font-size: 13px; line-height: 1.4;">
+          ${
+            validationResult.message ||
+            "Please make the required selections to proceed with AI analysis"
+          }
+        </p>
+      </div>
+    </div>
+  `;
       };
-
       // Main effect hook - Re-run when layout changes (selections, filters, etc.)
       useEffect(() => {
         if (!element) return;
@@ -834,21 +756,13 @@ export default function supernova() {
             } else {
               // Ready state
               content += `
-                <div id="llmResponse" style="flex: 1; overflow-y: scroll; ${responseStyle} text-align: left; min-height: 180px; height: 280px; border: 1px solid #d4edda; background: #f8fff9; scrollbar-width: thin; scrollbar-color: #9ca3af #f1f3f4;">
-                  <div style="padding: 16px; color: #155724; text-align: center;">
-                    <h3 style="margin: 0 0 6px 0; color: inherit; font-size: 16px; font-weight: 600;">Ready to Analyze</h3>
-                    <div style="background: rgba(21, 87, 36, 0.1); border-radius: 16px; padding: 6px 12px; margin: 6px auto 12px auto; font-size: 13px; font-weight: 500; display: inline-block;">
-                      ${
-                        validation.mode === "custom_expression"
-                          ? "Custom validation passed"
-                          : "Data ready"
-                      }
-                    </div>
-                    <p style="margin: 0; opacity: 0.8; font-size: 13px; line-height: 1.4;">
-                      Ready to analyze the selected data<br>
-                      <span style="font-size: 11px; opacity: 0.7;">Click the generate button above to start AI analysis</span>
-                    </p>
-                  </div>
+                 <div id="llmResponse" style="flex: 1;${responseStyle} text-align: left; min-height: 180px; height: 280px; border: 1px solid #d4edda; background: #f8fff9; scrollbar-width: thin; scrollbar-color: #9ca3af #f1f3f4;">
+                 <div style="padding: 16px; color: #155724; text-align: center;">
+                 <h3 style="margin: 0 0 12px 0; color: inherit; font-size: 16px; font-weight: 600;">Ready to Analyze</h3>
+                  <p style="margin: 0; opacity: 0.8; font-size: 13px; line-height: 1.4;">
+                     Click the generate button above to start AI analysis
+                  </p>
+                </div>
                 </div>
               `;
             }
