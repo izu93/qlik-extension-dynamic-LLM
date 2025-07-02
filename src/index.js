@@ -753,17 +753,21 @@ export default function supernova() {
         const statsContainer = document.getElementById("smartMappingStats");
         if (!statsContainer) return;
 
-        const autoMapped = suggestions.filter((s) => s.confidence >= 80).length;
-        const needMapping = detectedFields.length - autoMapped;
+        const totalDetected = detectedFields.length;
+        const actuallyMapped = suggestions.filter((s) => s.mappedField).length;
+        const autoSuggested = suggestions.filter(
+          (s) => s.confidence >= 80 && s.suggestedField
+        ).length;
+        const needMapping = totalDetected - actuallyMapped;
 
         statsContainer.innerHTML = `
           <div class="smart-mapping-stat">
-            <div class="smart-mapping-stat-number">${detectedFields.length}</div>
+            <div class="smart-mapping-stat-number">${totalDetected}</div>
             <div class="smart-mapping-stat-label">Fields Detected</div>
           </div>
           <div class="smart-mapping-stat">
-            <div class="smart-mapping-stat-number">${autoMapped}</div>
-            <div class="smart-mapping-stat-label">Auto-Mapped</div>
+            <div class="smart-mapping-stat-number">${actuallyMapped}</div>
+            <div class="smart-mapping-stat-label">Mapped</div>
           </div>
           <div class="smart-mapping-stat">
             <div class="smart-mapping-stat-number">${needMapping}</div>
@@ -790,7 +794,16 @@ export default function supernova() {
         }
 
         const fieldsHTML = suggestions
-          .map((suggestion) => {
+          .map((suggestion, index) => {
+            const mappedField =
+              suggestion.mappedField || suggestion.suggestedField?.name || "";
+            const isManuallyMapped =
+              suggestion.mappedField &&
+              suggestion.mappedField !== suggestion.suggestedField?.name;
+            const isMapped =
+              suggestion.mappedField ||
+              (suggestion.confidence >= 80 && suggestion.suggestedField);
+
             const confidenceColor =
               suggestion.confidence >= 80
                 ? "#28a745"
@@ -807,48 +820,121 @@ export default function supernova() {
             return `
             <div class="smart-mapping-detected-field" style="
               background: white;
-              border: 1px solid #e0e0e0;
+              border: 1px solid ${isMapped ? "#28a745" : "#e0e0e0"};
               border-radius: 8px;
               padding: 12px;
               margin-bottom: 8px;
-              display: flex;
-              align-items: center;
-              justify-content: space-between;
+              transition: all 0.2s ease;
             ">
-              <div style="flex: 1;">
-                <div style="font-weight: 600; font-size: 12px; color: #495057;">
-                  ${suggestion.placeholder}
-                  <span style="
-                    background: ${
-                      suggestion.source === "system" ? "#e3f2fd" : "#fff3e0"
-                    };
-                    color: ${
-                      suggestion.source === "system" ? "#1565c0" : "#ef6c00"
-                    };
-                    padding: 2px 6px;
-                    border-radius: 10px;
-                    font-size: 9px;
-                    margin-left: 6px;
-                  ">${suggestion.source}</span>
+              <div style="display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 8px;">
+                <div style="flex: 1;">
+                  <div style="font-weight: 600; font-size: 12px; color: #495057; margin-bottom: 4px;">
+                    ${suggestion.placeholder}
+                    <span style="
+                      background: ${
+                        suggestion.source === "system" ? "#e3f2fd" : "#fff3e0"
+                      };
+                      color: ${
+                        suggestion.source === "system" ? "#1565c0" : "#ef6c00"
+                      };
+                      padding: 2px 6px;
+                      border-radius: 10px;
+                      font-size: 9px;
+                      margin-left: 6px;
+                    ">${suggestion.source}</span>
+                    ${
+                      isManuallyMapped
+                        ? '<span style="background: #e8f5e8; color: #2e7d32; padding: 2px 6px; border-radius: 10px; font-size: 9px; margin-left: 4px;">manual</span>'
+                        : ""
+                    }
+                  </div>
+                  <div style="font-size: 10px; color: #6c757d;">
+                    ${
+                      suggestion.suggestedField
+                        ? `Auto-suggested: ${suggestion.suggestedField.name} (${suggestion.suggestedField.type})`
+                        : "No auto-mapping suggestion"
+                    }
+                  </div>
                 </div>
-                <div style="font-size: 10px; color: #6c757d; margin-top: 2px;">
-                  ${
-                    suggestion.suggestedField
-                      ? `Suggested: ${suggestion.suggestedField.name} (${suggestion.suggestedField.type})`
-                      : "No auto-mapping suggestion"
-                  }
+                <div style="
+                  display: flex;
+                  align-items: center;
+                  gap: 4px;
+                  font-size: 10px;
+                  color: ${confidenceColor};
+                  font-weight: 600;
+                ">
+                  <span>${confidenceIcon}</span>
+                  <span>${suggestion.confidence}%</span>
                 </div>
               </div>
-              <div style="
-                display: flex;
-                align-items: center;
-                gap: 4px;
-                font-size: 10px;
-                color: ${confidenceColor};
-                font-weight: 600;
-              ">
-                <span>${confidenceIcon}</span>
-                <span>${suggestion.confidence}%</span>
+              
+              <!-- Interactive Mapping Section -->
+              <div style="border-top: 1px solid #f0f0f0; padding-top: 8px;">
+                <div style="display: flex; align-items: center; gap: 8px;">
+                  <span style="font-size: 10px; color: #6c757d; font-weight: 600; flex-shrink: 0;">Map to:</span>
+                  <select 
+                    id="fieldMapping_${index}" 
+                    class="smart-mapping-field-selector"
+                    onchange="handleFieldMappingChange(${index}, this.value)"
+                    style="
+                      flex: 1;
+                      padding: 4px 8px;
+                      border: 1px solid #ddd;
+                      border-radius: 4px;
+                      font-size: 11px;
+                      background: white;
+                      cursor: pointer;
+                    "
+                  >
+                    <option value="">-- Select Field --</option>
+                    ${getFieldOptionsHTML(mappedField)}
+                  </select>
+                  
+                  ${
+                    mappedField
+                      ? `
+                    <button 
+                      onclick="clearFieldMapping(${index})"
+                      style="
+                        background: #dc3545;
+                        color: white;
+                        border: none;
+                        padding: 4px 6px;
+                        border-radius: 4px;
+                        font-size: 9px;
+                        cursor: pointer;
+                        display: flex;
+                        align-items: center;
+                      "
+                      title="Clear mapping"
+                    >✕</button>
+                  `
+                      : ""
+                  }
+                </div>
+                
+                ${
+                  mappedField
+                    ? `
+                  <div style="
+                    margin-top: 6px;
+                    padding: 6px 8px;
+                    background: #e8f5e8;
+                    border: 1px solid #c3e6c3;
+                    border-radius: 4px;
+                    font-size: 10px;
+                    color: #2e7d32;
+                    display: flex;
+                    align-items: center;
+                    gap: 4px;
+                  ">
+                    <span>✓</span>
+                    <span>Mapped to: <strong>${mappedField}</strong></span>
+                  </div>
+                `
+                    : ""
+                }
               </div>
             </div>
           `;
@@ -856,6 +942,92 @@ export default function supernova() {
           .join("");
 
         fieldsContainer.innerHTML = fieldsHTML;
+      }
+
+      // Generate field options HTML for dropdowns
+      function getFieldOptionsHTML(selectedField = "") {
+        const availableFields = getAvailableFields(layout);
+        let optionsHTML = "";
+
+        // Add dimension options
+        if (availableFields.dimensions.length > 0) {
+          optionsHTML += '<optgroup label="📊 Dimensions">';
+          availableFields.dimensions.forEach((dim) => {
+            const selected = selectedField === dim.name ? "selected" : "";
+            optionsHTML += `<option value="${dim.name}" ${selected}>${dim.name}</option>`;
+          });
+          optionsHTML += "</optgroup>";
+        }
+
+        // Add measure options
+        if (availableFields.measures.length > 0) {
+          optionsHTML += '<optgroup label="📈 Measures">';
+          availableFields.measures.forEach((measure) => {
+            const selected = selectedField === measure.name ? "selected" : "";
+            optionsHTML += `<option value="${measure.name}" ${selected}>${measure.name}</option>`;
+          });
+          optionsHTML += "</optgroup>";
+        }
+
+        return optionsHTML;
+      }
+
+      // Handle field mapping changes
+      window.handleFieldMappingChange = function (index, selectedField) {
+        if (index >= 0 && index < currentFieldSuggestions.length) {
+          // Update the mapping
+          currentFieldSuggestions[index].mappedField = selectedField || null;
+
+          // Update statistics
+          updateFieldStats(currentFieldSuggestions, currentFieldSuggestions);
+
+          // Update suggestions panel
+          updateSmartSuggestions(currentFieldSuggestions);
+
+          // Update validation status
+          updateMappingValidation();
+        }
+      };
+
+      // Clear field mapping
+      window.clearFieldMapping = function (index) {
+        if (index >= 0 && index < currentFieldSuggestions.length) {
+          currentFieldSuggestions[index].mappedField = null;
+
+          // Refresh the display
+          updateDetectedFieldsList(currentFieldSuggestions);
+          updateFieldStats(currentFieldSuggestions, currentFieldSuggestions);
+          updateSmartSuggestions(currentFieldSuggestions);
+          updateMappingValidation();
+        }
+      };
+
+      // Update mapping validation status
+      function updateMappingValidation() {
+        const validationDiv = document.getElementById("smartMappingValidation");
+        if (!validationDiv) return;
+
+        const totalFields = currentFieldSuggestions.length;
+        const mappedFields = currentFieldSuggestions.filter(
+          (s) => s.mappedField
+        ).length;
+
+        if (totalFields === 0) {
+          validationDiv.innerHTML =
+            "Add {{field}} placeholders to your prompts";
+          validationDiv.style.color = "#6c757d";
+        } else if (mappedFields === 0) {
+          validationDiv.innerHTML = `⚠️ ${totalFields} fields need mapping`;
+          validationDiv.style.color = "#ffc107";
+        } else if (mappedFields < totalFields) {
+          validationDiv.innerHTML = `⚠️ ${mappedFields}/${totalFields} fields mapped - ${
+            totalFields - mappedFields
+          } remaining`;
+          validationDiv.style.color = "#ffc107";
+        } else {
+          validationDiv.innerHTML = `✅ All ${totalFields} fields mapped and ready to save`;
+          validationDiv.style.color = "#28a745";
+        }
       }
 
       function updateAvailableFieldsDisplay(availableFields) {
@@ -933,19 +1105,43 @@ export default function supernova() {
           return;
         }
 
-        const highConfidence = suggestions.filter((s) => s.confidence >= 80);
-        const mediumConfidence = suggestions.filter(
-          (s) => s.confidence >= 40 && s.confidence < 80
+        const mapped = suggestions.filter((s) => s.mappedField);
+        const highConfidence = suggestions.filter(
+          (s) => s.confidence >= 80 && s.suggestedField && !s.mappedField
         );
-        const noSuggestions = suggestions.filter((s) => s.confidence < 40);
+        const mediumConfidence = suggestions.filter(
+          (s) => s.confidence >= 40 && s.confidence < 80 && !s.mappedField
+        );
+        const needManualMapping = suggestions.filter(
+          (s) => s.confidence < 40 && !s.mappedField
+        );
 
         let suggestionsHTML = "";
+
+        if (mapped.length > 0) {
+          suggestionsHTML += `
+            <div style="margin-bottom: 8px;">
+              <div style="font-weight: 600; font-size: 10px; color: #28a745; margin-bottom: 4px;">
+                ✅ Mapped Fields (${mapped.length})
+              </div>
+              ${mapped
+                .map(
+                  (s) => `
+                <div style="font-size: 9px; margin-bottom: 2px;">
+                  ${s.placeholder} → ${s.mappedField}
+                </div>
+              `
+                )
+                .join("")}
+            </div>
+          `;
+        }
 
         if (highConfidence.length > 0) {
           suggestionsHTML += `
             <div style="margin-bottom: 8px;">
-              <div style="font-weight: 600; font-size: 10px; color: #28a745; margin-bottom: 4px;">
-                ✅ High Confidence Matches (${highConfidence.length})
+              <div style="font-weight: 600; font-size: 10px; color: #2196f3; margin-bottom: 4px;">
+                🔄 Ready to Auto-Map (${highConfidence.length})
               </div>
               ${highConfidence
                 .map(
@@ -981,17 +1177,17 @@ export default function supernova() {
           `;
         }
 
-        if (noSuggestions.length > 0) {
+        if (needManualMapping.length > 0) {
           suggestionsHTML += `
             <div>
               <div style="font-weight: 600; font-size: 10px; color: #dc3545; margin-bottom: 4px;">
-                ❌ Manual Mapping Needed (${noSuggestions.length})
+                ❌ Manual Mapping Needed (${needManualMapping.length})
               </div>
-              ${noSuggestions
+              ${needManualMapping
                 .map(
                   (s) => `
                 <div style="font-size: 9px; margin-bottom: 2px;">
-                  ${s.placeholder} → Manual selection required
+                  ${s.placeholder} → Use dropdown to select
                 </div>
               `
                 )
@@ -1166,346 +1362,425 @@ export default function supernova() {
         }
 
         const styles = `
-          <style id="smartFieldMappingStyles">
-            .smart-mapping-modal-overlay {
-              position: fixed;
-              top: 0;
-              left: 0;
-              width: 100%;
-              height: 100%;
-              background: rgba(0, 0, 0, 0.7);
-              backdrop-filter: blur(5px);
-              display: none;
-              align-items: center;
-              justify-content: center;
-              z-index: 10000;
-              font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
-            }
-            
-            .smart-mapping-modal-overlay.active {
-              display: flex;
-            }
-            
-            .smart-mapping-modal-container {
-              width: 95vw;
-              max-width: 1400px;
-              height: 90vh;
-              background: white;
-              border-radius: 20px;
-              box-shadow: 0 20px 60px rgba(0,0,0,0.3);
-              display: flex;
-              flex-direction: column;
-              overflow: hidden;
-            }
-            
-            .smart-mapping-modal-header {
-              background: linear-gradient(135deg, #4a90e2 0%, #357abd 100%);
-              color: white;
-              padding: 20px 30px;
-              display: flex;
-              align-items: center;
-              justify-content: space-between;
-            }
-            
-            .smart-mapping-modal-title {
-              font-size: 20px;
-              font-weight: 600;
-              display: flex;
-              align-items: center;
-              gap: 10px;
-            }
-            
-            .smart-mapping-close-btn {
-              background: rgba(255,255,255,0.2);
-              border: none;
-              color: white;
-              width: 40px;
-              height: 40px;
-              border-radius: 50%;
-              cursor: pointer;
-              font-size: 24px;
-              display: flex;
-              align-items: center;
-              justify-content: center;
-            }
-            
-            .smart-mapping-close-btn:hover {
-              background: rgba(255,255,255,0.3);
-            }
-            
-            .smart-mapping-modal-content {
-              flex: 1;
-              display: grid;
-              grid-template-columns: 1fr 500px;
-              overflow: hidden;
-            }
-            
-            .smart-mapping-prompts-panel {
-              padding: 30px;
-              display: flex;
-              flex-direction: column;
-              gap: 20px;
-              border-right: 1px solid #e0e0e0;
-              overflow-y: auto;
-            }
-            
-            .smart-mapping-prompt-section {
-              flex: 1;
-              display: flex;
-              flex-direction: column;
-            }
-            
-            .smart-mapping-prompt-header {
-              font-size: 16px;
-              font-weight: 600;
-              color: #495057;
-              margin-bottom: 12px;
-              display: flex;
-              align-items: center;
-              gap: 8px;
-            }
-            
-            .smart-mapping-prompt-container {
-              flex: 1;
-              border: 2px solid #e0e0e0;
-              border-radius: 12px;
-              overflow: hidden;
-            }
-            
-            .smart-mapping-prompt-container:focus-within {
-              border-color: #4a90e2;
-            }
-            
-            .smart-mapping-textarea {
-              width: 100%;
-              height: 100%;
-              min-height: 200px;
-              padding: 20px;
-              border: none;
-              font-family: 'SF Mono', 'Monaco', monospace;
-              font-size: 14px;
-              line-height: 1.6;
-              resize: none;
-              background: #fafafa;
-              box-sizing: border-box;
-            }
-            
-            .smart-mapping-textarea:focus {
-              outline: none;
-              background: white;
-            }
-            
-            .smart-mapping-fields-panel {
-              background: #f8f9fa;
-              padding: 30px;
-              overflow-y: auto;
-              display: flex;
-              flex-direction: column;
-              gap: 24px;
-            }
-            
-            .smart-mapping-section {
-              background: white;
-              border-radius: 12px;
-              overflow: hidden;
-              box-shadow: 0 2px 8px rgba(0,0,0,0.05);
-            }
-            
-            .smart-mapping-section-header {
-              background: #f8f9fa;
-              padding: 16px 20px;
-              border-bottom: 1px solid #e0e0e0;
-              font-size: 16px;
-              font-weight: 600;
-              color: #495057;
-              display: flex;
-              align-items: center;
-              justify-content: space-between;
-              gap: 10px;
-            }
-            
-            .smart-mapping-auto-map-btn {
-              background: #28a745;
-              color: white;
-              border: none;
-              padding: 6px 12px;
-              border-radius: 16px;
-              font-size: 11px;
-              font-weight: 600;
-              cursor: pointer;
-              display: flex;
-              align-items: center;
-              gap: 4px;
-            }
-            
-            .smart-mapping-auto-map-btn:hover {
-              background: #218838;
-            }
-            
-            .smart-mapping-fields-list {
-              padding: 20px;
-              min-height: 60px;
-            }
-            
-            .smart-mapping-stats {
-              padding: 16px 20px;
-              display: flex;
-              justify-content: space-around;
-              background: #f8f9fa;
-              border-top: 1px solid #e0e0e0;
-            }
-            
-            .smart-mapping-stat {
-              text-align: center;
-            }
-            
-            .smart-mapping-stat-number {
-              font-size: 20px;
-              font-weight: bold;
-              color: #4a90e2;
-            }
-            
-            .smart-mapping-stat-label {
-              font-size: 10px;
-              color: #6c757d;
-              text-transform: uppercase;
-            }
-            
-            .smart-mapping-available-fields {
-              padding: 20px;
-            }
-            
-            .smart-mapping-field-group {
-              margin-bottom: 16px;
-            }
-            
-            .smart-mapping-field-group-header {
-              font-size: 12px;
-              font-weight: 600;
-              color: #6c757d;
-              margin-bottom: 8px;
-              display: flex;
-              align-items: center;
-              gap: 6px;
-            }
-            
-            .smart-mapping-field-tags {
-              display: flex;
-              flex-wrap: wrap;
-              gap: 6px;
-            }
-            
-            .smart-mapping-field-tag {
-              padding: 4px 8px;
-              border-radius: 12px;
-              font-size: 10px;
-              font-weight: 500;
-              cursor: pointer;
-              transition: all 0.2s ease;
-              border: 1px solid transparent;
-            }
-            
-            .smart-mapping-field-tag.dimension {
-              background: #e3f2fd;
-              color: #1565c0;
-              border-color: #90caf9;
-            }
-            
-            .smart-mapping-field-tag.measure {
-              background: #fff3e0;
-              color: #ef6c00;
-              border-color: #ffb74d;
-            }
-            
-            .smart-mapping-field-tag:hover {
-              transform: translateY(-1px);
-              box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-            }
-            
-            .smart-mapping-detected-field {
-              transition: all 0.2s ease;
-            }
-            
-            .smart-mapping-detected-field:hover {
-              transform: translateY(-1px);
-              box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-            }
-            
-            .smart-mapping-suggestions {
-              padding: 20px;
-              background: #fff9c4;
-              font-size: 11px;
-              color: #856404;
-              line-height: 1.4;
-            }
-            
-            .smart-mapping-modal-footer {
-              padding: 20px 30px;
-              background: #f8f9fa;
-              border-top: 1px solid #e0e0e0;
-              display: flex;
-              justify-content: space-between;
-              align-items: center;
-            }
-            
-            .smart-mapping-validation {
-              font-size: 12px;
-              color: #6c757d;
-            }
-            
-            .smart-mapping-actions {
-              display: flex;
-              gap: 12px;
-            }
-            
-            .smart-mapping-btn {
-              padding: 10px 20px;
-              border: none;
-              border-radius: 8px;
-              font-weight: 600;
-              cursor: pointer;
-              font-size: 14px;
-              display: flex;
-              align-items: center;
-              gap: 6px;
-            }
-            
-            .smart-mapping-btn-primary {
-              background: linear-gradient(135deg, #4a90e2 0%, #357abd 100%);
-              color: white;
-            }
-            
-            .smart-mapping-btn-primary:hover {
-              transform: translateY(-1px);
-              box-shadow: 0 4px 12px rgba(74, 144, 226, 0.3);
-            }
-            
-            .smart-mapping-btn-secondary {
-              background: #f8f9fa;
-              color: #6c757d;
-              border: 1px solid #e0e0e0;
-            }
-            
-            .smart-mapping-btn-secondary:hover {
-              background: #e9ecef;
-            }
-            
-            @media (max-width: 1200px) {
-              .smart-mapping-modal-content {
-                grid-template-columns: 1fr;
-              }
-              
-              .smart-mapping-fields-panel {
-                border-top: 1px solid #e0e0e0;
-                border-right: none;
-              }
-            }
-          </style>
-        `;
+    <style id="smartFieldMappingStyles">
+      .smart-mapping-modal-overlay {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(0, 0, 0, 0.7);
+        backdrop-filter: blur(5px);
+        display: none;
+        align-items: center;
+        justify-content: center;
+        z-index: 10000;
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
+      }
+      
+      .smart-mapping-modal-overlay.active {
+        display: flex;
+      }
+      
+      .smart-mapping-modal-container {
+        width: 95vw;
+        max-width: 1400px;
+        height: 90vh;
+        background: white;
+        border-radius: 20px;
+        box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
+      }
+      
+      .smart-mapping-modal-header {
+        background: linear-gradient(135deg, #4a90e2 0%, #357abd 100%);
+        color: white;
+        padding: 20px 30px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+      }
+      
+      .smart-mapping-modal-title {
+        font-size: 20px;
+        font-weight: 600;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+      }
+      
+      .smart-mapping-close-btn {
+        background: rgba(255,255,255,0.2);
+        border: none;
+        color: white;
+        width: 40px;
+        height: 40px;
+        border-radius: 50%;
+        cursor: pointer;
+        font-size: 24px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+      
+      .smart-mapping-close-btn:hover {
+        background: rgba(255,255,255,0.3);
+      }
+      
+      .smart-mapping-modal-content {
+        flex: 1;
+        display: grid;
+        grid-template-columns: 1fr 500px;
+        overflow: hidden;
+      }
+      
+      .smart-mapping-prompts-panel {
+        padding: 30px;
+        display: flex;
+        flex-direction: column;
+        gap: 20px;
+        border-right: 1px solid #e0e0e0;
+        overflow-y: auto;
+      }
+      
+      .smart-mapping-prompt-section {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+      }
+      
+      .smart-mapping-prompt-header {
+        font-size: 16px;
+        font-weight: 600;
+        color: #495057;
+        margin-bottom: 12px;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+      
+      .smart-mapping-prompt-container {
+        flex: 1;
+        border: 2px solid #e0e0e0;
+        border-radius: 12px;
+        overflow: hidden;
+      }
+      
+      .smart-mapping-prompt-container:focus-within {
+        border-color: #4a90e2;
+      }
+      
+      .smart-mapping-textarea {
+        width: 100%;
+        height: 100%;
+        min-height: 200px;
+        padding: 20px;
+        border: none;
+        font-family: 'SF Mono', 'Monaco', monospace;
+        font-size: 14px;
+        line-height: 1.6;
+        resize: none;
+        background: #fafafa;
+        box-sizing: border-box;
+      }
+      
+      .smart-mapping-textarea:focus {
+        outline: none;
+        background: white;
+      }
+      
+      .smart-mapping-fields-panel {
+        background: #f8f9fa;
+        padding: 30px;
+        overflow-y: auto;
+        display: flex;
+        flex-direction: column;
+        gap: 24px;
+      }
+      
+      .smart-mapping-section {
+        background: white;
+        border-radius: 12px;
+        overflow: hidden;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+      }
+      
+      .smart-mapping-section-header {
+        background: #f8f9fa;
+        padding: 16px 20px;
+        border-bottom: 1px solid #e0e0e0;
+        font-size: 16px;
+        font-weight: 600;
+        color: #495057;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+      }
+      
+      .smart-mapping-auto-map-btn {
+        background: #28a745;
+        color: white;
+        border: none;
+        padding: 6px 12px;
+        border-radius: 16px;
+        font-size: 11px;
+        font-weight: 600;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        gap: 4px;
+      }
+      
+      .smart-mapping-auto-map-btn:hover {
+        background: #218838;
+      }
+      
+      .smart-mapping-fields-list {
+        padding: 20px;
+        min-height: 60px;
+        max-height: 300px;
+        overflow-y: auto;
+        scrollbar-width: thin;
+        scrollbar-color: #9ca3af #f1f3f4;
+      }
+      
+      .smart-mapping-fields-list::-webkit-scrollbar {
+        width: 8px;
+      }
+      
+      .smart-mapping-fields-list::-webkit-scrollbar-track {
+        background: #f1f3f4;
+        border-radius: 4px;
+      }
+      
+      .smart-mapping-fields-list::-webkit-scrollbar-thumb {
+        background: #9ca3af;
+        border-radius: 4px;
+      }
+      
+      .smart-mapping-fields-list::-webkit-scrollbar-thumb:hover {
+        background: #6b7280;
+      }
+      
+      .smart-mapping-stats {
+        padding: 16px 20px;
+        display: flex;
+        justify-content: space-around;
+        background: #f8f9fa;
+        border-top: 1px solid #e0e0e0;
+      }
+      
+      .smart-mapping-stat {
+        text-align: center;
+      }
+      
+      .smart-mapping-stat-number {
+        font-size: 20px;
+        font-weight: bold;
+        color: #4a90e2;
+      }
+      
+      .smart-mapping-stat-label {
+        font-size: 10px;
+        color: #6c757d;
+        text-transform: uppercase;
+      }
+      
+      .smart-mapping-available-fields {
+        padding: 20px;
+        max-height: 200px;
+        overflow-y: auto;
+        scrollbar-width: thin;
+        scrollbar-color: #9ca3af #f1f3f4;
+      }
+      
+      .smart-mapping-available-fields::-webkit-scrollbar {
+        width: 8px;
+      }
+      
+      .smart-mapping-available-fields::-webkit-scrollbar-track {
+        background: #f1f3f4;
+        border-radius: 4px;
+      }
+      
+      .smart-mapping-available-fields::-webkit-scrollbar-thumb {
+        background: #9ca3af;
+        border-radius: 4px;
+      }
+      
+      .smart-mapping-available-fields::-webkit-scrollbar-thumb:hover {
+        background: #6b7280;
+      }
+      
+      .smart-mapping-field-group {
+        margin-bottom: 16px;
+      }
+      
+      .smart-mapping-field-group-header {
+        font-size: 12px;
+        font-weight: 600;
+        color: #6c757d;
+        margin-bottom: 8px;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+      }
+      
+      .smart-mapping-field-tags {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+      }
+      
+      .smart-mapping-field-tag {
+        padding: 4px 8px;
+        border-radius: 12px;
+        font-size: 10px;
+        font-weight: 500;
+        cursor: pointer;
+        transition: all 0.2s ease;
+        border: 1px solid transparent;
+      }
+      
+      .smart-mapping-field-tag.dimension {
+        background: #e3f2fd;
+        color: #1565c0;
+        border-color: #90caf9;
+      }
+      
+      .smart-mapping-field-tag.measure {
+        background: #fff3e0;
+        color: #ef6c00;
+        border-color: #ffb74d;
+      }
+      
+      .smart-mapping-field-tag:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+      }
+      
+      .smart-mapping-detected-field {
+        transition: all 0.2s ease;
+      }
+      
+      .smart-mapping-detected-field:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+      }
+      
+      .smart-mapping-field-selector {
+        transition: all 0.2s ease;
+      }
+      
+      .smart-mapping-field-selector:focus {
+        outline: none;
+        border-color: #4a90e2 !important;
+        box-shadow: 0 0 0 2px rgba(74, 144, 226, 0.2);
+      }
+      
+      .smart-mapping-field-selector:hover {
+        border-color: #4a90e2;
+      }
+      
+      .smart-mapping-suggestions {
+        padding: 20px;
+        background: #fff9c4;
+        font-size: 11px;
+        color: #856404;
+        line-height: 1.4;
+        max-height: 150px;
+        overflow-y: auto;
+        scrollbar-width: thin;
+        scrollbar-color: #d4af37 #fff9c4;
+      }
+      
+      .smart-mapping-suggestions::-webkit-scrollbar {
+        width: 8px;
+      }
+      
+      .smart-mapping-suggestions::-webkit-scrollbar-track {
+        background: #fff9c4;
+        border-radius: 4px;
+      }
+      
+      .smart-mapping-suggestions::-webkit-scrollbar-thumb {
+        background: #d4af37;
+        border-radius: 4px;
+      }
+      
+      .smart-mapping-suggestions::-webkit-scrollbar-thumb:hover {
+        background: #b8941f;
+      }
+      
+      .smart-mapping-modal-footer {
+        padding: 20px 30px;
+        background: #f8f9fa;
+        border-top: 1px solid #e0e0e0;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+      }
+      
+      .smart-mapping-validation {
+        font-size: 12px;
+        color: #6c757d;
+      }
+      
+      .smart-mapping-actions {
+        display: flex;
+        gap: 12px;
+      }
+      
+      .smart-mapping-btn {
+        padding: 10px 20px;
+        border: none;
+        border-radius: 8px;
+        font-weight: 600;
+        cursor: pointer;
+        font-size: 14px;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+      }
+      
+      .smart-mapping-btn-primary {
+        background: linear-gradient(135deg, #4a90e2 0%, #357abd 100%);
+        color: white;
+      }
+      
+      .smart-mapping-btn-primary:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 4px 12px rgba(74, 144, 226, 0.3);
+      }
+      
+      .smart-mapping-btn-secondary {
+        background: #f8f9fa;
+        color: #6c757d;
+        border: 1px solid #e0e0e0;
+      }
+      
+      .smart-mapping-btn-secondary:hover {
+        background: #e9ecef;
+      }
+      
+      @media (max-width: 1200px) {
+        .smart-mapping-modal-content {
+          grid-template-columns: 1fr;
+        }
+        
+        .smart-mapping-fields-panel {
+          border-top: 1px solid #e0e0e0;
+          border-right: none;
+        }
+      }
+    </style>
+  `;
 
         document.head.insertAdjacentHTML("beforeend", styles);
       }
-
       // ... other modal functions
       function setupSmartFieldMappingEvents() {
         // Auto-map button
@@ -1582,41 +1857,55 @@ export default function supernova() {
           systemPrompt,
           userPrompt
         );
+
+        // Update validation status
+        updateMappingValidation();
       }
 
       function handleAutoMap() {
         // Auto-map high confidence suggestions
-        const autoMapped = currentFieldSuggestions.filter(
-          (s) => s.confidence >= 80
+        const autoMappable = currentFieldSuggestions.filter(
+          (s) => s.confidence >= 80 && s.suggestedField && !s.mappedField
         );
 
-        if (autoMapped.length === 0) {
-          alert(
-            "No high-confidence matches found for auto-mapping. Please map fields manually."
-          );
+        if (autoMappable.length === 0) {
+          const alreadyMapped = currentFieldSuggestions.filter(
+            (s) => s.mappedField
+          ).length;
+          if (alreadyMapped === currentFieldSuggestions.length) {
+            alert("All fields are already mapped!");
+          } else {
+            alert(
+              "No high-confidence matches found for auto-mapping. Please map fields manually using the dropdowns."
+            );
+          }
           return;
         }
 
         // Apply auto-mappings
-        autoMapped.forEach((suggestion) => {
+        autoMappable.forEach((suggestion) => {
           suggestion.mappedField = suggestion.suggestedField.name;
         });
 
-        // Update display
+        // Update all displays
         updateDetectedFieldsList(currentFieldSuggestions);
         updateFieldStats(currentFieldSuggestions, currentFieldSuggestions);
+        updateSmartSuggestions(currentFieldSuggestions);
+        updateMappingValidation();
 
         // Show success message
         const validationDiv = document.getElementById("smartMappingValidation");
         if (validationDiv) {
-          validationDiv.innerHTML = `✅ Auto-mapped ${autoMapped.length} fields successfully!`;
+          const originalContent = validationDiv.innerHTML;
+          const originalColor = validationDiv.style.color;
+
+          validationDiv.innerHTML = `✨ Auto-mapped ${autoMappable.length} fields successfully!`;
           validationDiv.style.color = "#28a745";
 
-          // Reset after 3 seconds
+          // Reset after 2 seconds
           setTimeout(() => {
-            validationDiv.innerHTML = "Ready to save field mappings";
-            validationDiv.style.color = "#6c757d";
-          }, 3000);
+            updateMappingValidation(); // Restore proper validation status
+          }, 2000);
         }
       }
 
