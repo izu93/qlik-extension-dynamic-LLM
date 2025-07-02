@@ -1,4 +1,18 @@
 // Streamlined ext.js - Simple custom expression validation with fixed examples
+// Helper function for placeholder detection
+function detectPlaceholdersInPrompts(systemPrompt, userPrompt) {
+  const combined = `${systemPrompt} ${userPrompt}`;
+  const regex = /\{\{([^}]+)\}\}/g;
+  const matches = [...combined.matchAll(regex)];
+
+  return matches.map((match) => ({
+    placeholder: match[0],
+    fieldName: match[1].trim(),
+    position: match.index,
+    source: match.index < systemPrompt.length ? "system" : "user",
+  }));
+}
+
 export default {
   definition: {
     type: "items",
@@ -103,7 +117,67 @@ export default {
             type: "string",
             component: "text",
             label: "Service Info",
-            show: "ℹ️ Uses your external Claude SSE connection configured in QMC for advanced analysis.",
+            show: "ℹ️ Uses external Claude SSE connection configured in data connection for advanced analysis.",
+          },
+          // NEW: Smart Field Mapping Button
+          smartFieldMapping: {
+            type: "string",
+            component: "button",
+            label: "🧠🔀 Smart Field Mapping",
+            ref: "props.openFieldMapping",
+            action: function (data) {
+              // This will trigger the modal
+              if (window.openSmartFieldMappingModal) {
+                window.openSmartFieldMappingModal(data);
+              } else {
+                alert(
+                  "Smart Field Mapping modal will be available in the next update."
+                );
+              }
+            },
+            show: function (data) {
+              const isClaudeSelected = data.props?.connectionType === "claude";
+              const hasPrompts =
+                data.props?.systemPrompt || data.props?.userPrompt;
+              return isClaudeSelected && hasPrompts;
+            },
+          },
+
+          // NEW: Field Mapping Status Display
+          fieldMappingStatus: {
+            type: "string",
+            component: "text",
+            label: "Field Mapping Status",
+            show: function (data) {
+              const systemPrompt = data.props?.systemPrompt || "";
+              const userPrompt = data.props?.userPrompt || "";
+              const fieldMappings = data.props?.fieldMappings || [];
+
+              if (!systemPrompt && !userPrompt) {
+                return "💡 Add prompts to enable Smart Field Mapping";
+              }
+
+              const allPlaceholders = detectPlaceholdersInPrompts(
+                systemPrompt,
+                userPrompt
+              );
+
+              if (allPlaceholders.length === 0) {
+                return "💡 Add {{field}} placeholders to use Smart Mapping";
+              }
+
+              const mappedCount = fieldMappings.filter(
+                (m) => m.mappedField
+              ).length;
+
+              if (mappedCount === allPlaceholders.length) {
+                return `✅ All ${allPlaceholders.length} fields mapped successfully`;
+              } else {
+                return `⚠️ ${allPlaceholders.length - mappedCount} of ${
+                  allPlaceholders.length
+                } fields need mapping`;
+              }
+            },
           },
           systemPrompt: {
             type: "string",
@@ -131,6 +205,27 @@ export default {
             maxlength: 8000,
             rows: 6,
           },
+          // NEW: Hidden field mappings storage
+          fieldMappings: {
+            type: "array",
+            ref: "props.fieldMappings",
+            show: false, // Hidden from UI
+            items: {
+              placeholder: {
+                type: "string",
+              },
+              fieldName: {
+                type: "string",
+              },
+              mappedField: {
+                type: "string",
+              },
+              source: {
+                type: "string", // "system" or "user"
+              },
+            },
+          },
+
           temperature: {
             type: "number",
             component: "slider",
