@@ -1,4 +1,3 @@
-// Streamlined index.js - Fully dynamic custom expression validation
 import { useElement, useLayout, useEffect, useApp } from "@nebula.js/stardust";
 import objectProperties from "./object-properties";
 import extensionDefinition from "./ext";
@@ -634,7 +633,380 @@ export default function supernova() {
   `;
       };
 
-      // ===== ADD ALL MODAL FUNCTIONS HERE =====
+      // ===== STEP 4: REAL-TIME FIELD DETECTION FUNCTIONS =====
+
+      // Enhanced placeholder detection function
+      function detectPlaceholdersInPrompts(systemPrompt, userPrompt) {
+        const combined = `${systemPrompt} ${userPrompt}`;
+        const regex = /\{\{([^}]+)\}\}/g;
+        const matches = [...combined.matchAll(regex)];
+
+        return matches.map((match) => ({
+          placeholder: match[0],
+          fieldName: match[1].trim(),
+          position: match.index,
+          source: match.index < systemPrompt.length ? "system" : "user",
+        }));
+      }
+
+      // Get available fields from current layout
+      function getAvailableFields(layout) {
+        const dimensions = layout?.qHyperCube?.qDimensionInfo || [];
+        const measures = layout?.qHyperCube?.qMeasureInfo || [];
+
+        return {
+          dimensions: dimensions.map((dim) => ({
+            name: dim.qFallbackTitle,
+            type: "dimension",
+            expression: dim.qGroupFieldDefs?.[0] || dim.qFallbackTitle,
+          })),
+          measures: measures.map((measure) => ({
+            name: measure.qFallbackTitle,
+            type: "measure",
+            expression: measure.qDef?.qDef || measure.qFallbackTitle,
+          })),
+        };
+      }
+
+      // Smart field matching algorithm
+      function suggestFieldMappings(detectedFields, availableFields) {
+        const suggestions = [];
+
+        detectedFields.forEach((detected) => {
+          const fieldName = detected.fieldName.toLowerCase();
+
+          // Try exact matches first
+          let bestMatch = null;
+          let matchScore = 0;
+
+          [...availableFields.dimensions, ...availableFields.measures].forEach(
+            (available) => {
+              const availableName = available.name.toLowerCase();
+
+              // Exact match
+              if (availableName === fieldName) {
+                bestMatch = available;
+                matchScore = 100;
+              }
+              // Contains match
+              else if (matchScore < 80 && availableName.includes(fieldName)) {
+                bestMatch = available;
+                matchScore = 80;
+              }
+              // Starts with match
+              else if (matchScore < 60 && availableName.startsWith(fieldName)) {
+                bestMatch = available;
+                matchScore = 60;
+              }
+              // Similar words
+              else if (
+                matchScore < 40 &&
+                fieldName.includes(availableName.split(" ")[0])
+              ) {
+                bestMatch = available;
+                matchScore = 40;
+              }
+            }
+          );
+
+          suggestions.push({
+            placeholder: detected.placeholder,
+            fieldName: detected.fieldName,
+            source: detected.source,
+            suggestedField: bestMatch,
+            confidence: matchScore,
+            mappedField: null, // Will be set by user or auto-mapping
+          });
+        });
+
+        return suggestions;
+      }
+
+      // Update field detection display
+      function updateFieldDetectionDisplay(systemPrompt, userPrompt) {
+        const detectedFields = detectPlaceholdersInPrompts(
+          systemPrompt,
+          userPrompt
+        );
+        const availableFields = getAvailableFields(layout);
+        const suggestions = suggestFieldMappings(
+          detectedFields,
+          availableFields
+        );
+
+        // Update statistics
+        updateFieldStats(detectedFields, suggestions);
+
+        // Update detected fields list
+        updateDetectedFieldsList(suggestions);
+
+        // Update available fields display
+        updateAvailableFieldsDisplay(availableFields);
+
+        // Update suggestions
+        updateSmartSuggestions(suggestions);
+
+        return suggestions;
+      }
+
+      function updateFieldStats(detectedFields, suggestions) {
+        const statsContainer = document.getElementById("smartMappingStats");
+        if (!statsContainer) return;
+
+        const autoMapped = suggestions.filter((s) => s.confidence >= 80).length;
+        const needMapping = detectedFields.length - autoMapped;
+
+        statsContainer.innerHTML = `
+          <div class="smart-mapping-stat">
+            <div class="smart-mapping-stat-number">${detectedFields.length}</div>
+            <div class="smart-mapping-stat-label">Fields Detected</div>
+          </div>
+          <div class="smart-mapping-stat">
+            <div class="smart-mapping-stat-number">${autoMapped}</div>
+            <div class="smart-mapping-stat-label">Auto-Mapped</div>
+          </div>
+          <div class="smart-mapping-stat">
+            <div class="smart-mapping-stat-number">${needMapping}</div>
+            <div class="smart-mapping-stat-label">Need Mapping</div>
+          </div>
+        `;
+      }
+
+      function updateDetectedFieldsList(suggestions) {
+        const fieldsContainer = document.getElementById(
+          "smartMappingFieldsList"
+        );
+        if (!fieldsContainer) return;
+
+        if (suggestions.length === 0) {
+          fieldsContainer.innerHTML = `
+            <div style="text-align: center; color: #6c757d; padding: 20px;">
+              <div style="font-size: 24px; margin-bottom: 8px;">🔍</div>
+              <div style="font-size: 14px; margin-bottom: 4px;">No field placeholders detected</div>
+              <div style="font-size: 11px; opacity: 0.7;">Add {{fieldName}} placeholders to your prompts</div>
+            </div>
+          `;
+          return;
+        }
+
+        const fieldsHTML = suggestions
+          .map((suggestion) => {
+            const confidenceColor =
+              suggestion.confidence >= 80
+                ? "#28a745"
+                : suggestion.confidence >= 60
+                ? "#ffc107"
+                : "#dc3545";
+            const confidenceIcon =
+              suggestion.confidence >= 80
+                ? "✅"
+                : suggestion.confidence >= 60
+                ? "⚠️"
+                : "❌";
+
+            return `
+            <div class="smart-mapping-detected-field" style="
+              background: white;
+              border: 1px solid #e0e0e0;
+              border-radius: 8px;
+              padding: 12px;
+              margin-bottom: 8px;
+              display: flex;
+              align-items: center;
+              justify-content: space-between;
+            ">
+              <div style="flex: 1;">
+                <div style="font-weight: 600; font-size: 12px; color: #495057;">
+                  ${suggestion.placeholder}
+                  <span style="
+                    background: ${
+                      suggestion.source === "system" ? "#e3f2fd" : "#fff3e0"
+                    };
+                    color: ${
+                      suggestion.source === "system" ? "#1565c0" : "#ef6c00"
+                    };
+                    padding: 2px 6px;
+                    border-radius: 10px;
+                    font-size: 9px;
+                    margin-left: 6px;
+                  ">${suggestion.source}</span>
+                </div>
+                <div style="font-size: 10px; color: #6c757d; margin-top: 2px;">
+                  ${
+                    suggestion.suggestedField
+                      ? `Suggested: ${suggestion.suggestedField.name} (${suggestion.suggestedField.type})`
+                      : "No auto-mapping suggestion"
+                  }
+                </div>
+              </div>
+              <div style="
+                display: flex;
+                align-items: center;
+                gap: 4px;
+                font-size: 10px;
+                color: ${confidenceColor};
+                font-weight: 600;
+              ">
+                <span>${confidenceIcon}</span>
+                <span>${suggestion.confidence}%</span>
+              </div>
+            </div>
+          `;
+          })
+          .join("");
+
+        fieldsContainer.innerHTML = fieldsHTML;
+      }
+
+      function updateAvailableFieldsDisplay(availableFields) {
+        const dimensionsContainer = document.getElementById(
+          "smartMappingDimensions"
+        );
+        const measuresContainer = document.getElementById(
+          "smartMappingMeasures"
+        );
+
+        if (dimensionsContainer) {
+          if (availableFields.dimensions.length === 0) {
+            dimensionsContainer.innerHTML = `
+              <div style="
+                color: #6c757d;
+                font-size: 11px;
+                padding: 8px;
+                text-align: center;
+                background: #f8f9fa;
+                border-radius: 6px;
+              ">No dimensions available - add dimensions to the extension</div>
+            `;
+          } else {
+            dimensionsContainer.innerHTML = availableFields.dimensions
+              .map(
+                (dim) => `
+              <div class="smart-mapping-field-tag dimension" data-field="${dim.name}" data-type="dimension">
+                ${dim.name}
+              </div>
+            `
+              )
+              .join("");
+          }
+        }
+
+        if (measuresContainer) {
+          if (availableFields.measures.length === 0) {
+            measuresContainer.innerHTML = `
+              <div style="
+                color: #6c757d;
+                font-size: 11px;
+                padding: 8px;
+                text-align: center;
+                background: #f8f9fa;
+                border-radius: 6px;
+              ">No measures available - add measures to the extension</div>
+            `;
+          } else {
+            measuresContainer.innerHTML = availableFields.measures
+              .map(
+                (measure) => `
+              <div class="smart-mapping-field-tag measure" data-field="${measure.name}" data-type="measure">
+                ${measure.name}
+              </div>
+            `
+              )
+              .join("");
+          }
+        }
+      }
+
+      function updateSmartSuggestions(suggestions) {
+        const suggestionsContainer = document.getElementById(
+          "smartMappingSuggestions"
+        );
+        if (!suggestionsContainer) return;
+
+        if (suggestions.length === 0) {
+          suggestionsContainer.innerHTML = `
+            <div style="text-align: center; color: #856404;">
+              <div style="font-size: 16px; margin-bottom: 4px;">💡</div>
+              <div style="font-size: 11px;">Add {{fieldName}} placeholders to your prompts to get smart mapping suggestions</div>
+            </div>
+          `;
+          return;
+        }
+
+        const highConfidence = suggestions.filter((s) => s.confidence >= 80);
+        const mediumConfidence = suggestions.filter(
+          (s) => s.confidence >= 40 && s.confidence < 80
+        );
+        const noSuggestions = suggestions.filter((s) => s.confidence < 40);
+
+        let suggestionsHTML = "";
+
+        if (highConfidence.length > 0) {
+          suggestionsHTML += `
+            <div style="margin-bottom: 8px;">
+              <div style="font-weight: 600; font-size: 10px; color: #28a745; margin-bottom: 4px;">
+                ✅ High Confidence Matches (${highConfidence.length})
+              </div>
+              ${highConfidence
+                .map(
+                  (s) => `
+                <div style="font-size: 9px; margin-bottom: 2px;">
+                  ${s.placeholder} → ${s.suggestedField.name}
+                </div>
+              `
+                )
+                .join("")}
+            </div>
+          `;
+        }
+
+        if (mediumConfidence.length > 0) {
+          suggestionsHTML += `
+            <div style="margin-bottom: 8px;">
+              <div style="font-weight: 600; font-size: 10px; color: #ffc107; margin-bottom: 4px;">
+                ⚠️ Review Suggested (${mediumConfidence.length})
+              </div>
+              ${mediumConfidence
+                .map(
+                  (s) => `
+                <div style="font-size: 9px; margin-bottom: 2px;">
+                  ${s.placeholder} → ${
+                    s.suggestedField ? s.suggestedField.name : "No suggestion"
+                  }
+                </div>
+              `
+                )
+                .join("")}
+            </div>
+          `;
+        }
+
+        if (noSuggestions.length > 0) {
+          suggestionsHTML += `
+            <div>
+              <div style="font-weight: 600; font-size: 10px; color: #dc3545; margin-bottom: 4px;">
+                ❌ Manual Mapping Needed (${noSuggestions.length})
+              </div>
+              ${noSuggestions
+                .map(
+                  (s) => `
+                <div style="font-size: 9px; margin-bottom: 2px;">
+                  ${s.placeholder} → Manual selection required
+                </div>
+              `
+                )
+                .join("")}
+            </div>
+          `;
+        }
+
+        suggestionsContainer.innerHTML = suggestionsHTML;
+      }
+
+      // Store current suggestions globally for access by other functions
+      let currentFieldSuggestions = [];
+
+      // ===== END STEP 4 FUNCTIONS =====
       // NEW: Smart Field Mapping Modal Functions
       function createSmartFieldMappingModal() {
         // Check if modal already exists
@@ -1050,6 +1422,15 @@ export default function supernova() {
               box-shadow: 0 2px 4px rgba(0,0,0,0.1);
             }
             
+            .smart-mapping-detected-field {
+              transition: all 0.2s ease;
+            }
+            
+            .smart-mapping-detected-field:hover {
+              transform: translateY(-1px);
+              box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            }
+            
             .smart-mapping-suggestions {
               padding: 20px;
               background: #fff9c4;
@@ -1167,10 +1548,10 @@ export default function supernova() {
           systemPrompt;
         document.getElementById("smartMappingUserPrompt").value = userPrompt;
 
-        // Load available fields
+        // Load available fields from current layout
         loadAvailableFields();
 
-        // Detect fields in prompts
+        // Detect fields in current prompts
         detectAndDisplayFields();
 
         // Show modal
@@ -1187,50 +1568,84 @@ export default function supernova() {
       }
 
       function loadAvailableFields() {
-        // TODO: Next step will implement this
-        const dimensionsContainer = document.getElementById(
-          "smartMappingDimensions"
-        );
-        const measuresContainer = document.getElementById(
-          "smartMappingMeasures"
-        );
-
-        if (dimensionsContainer) {
-          dimensionsContainer.innerHTML =
-            '<div class="smart-mapping-field-tag dimension">Loading...</div>';
-        }
-
-        if (measuresContainer) {
-          measuresContainer.innerHTML =
-            '<div class="smart-mapping-field-tag measure">Loading...</div>';
-        }
+        const availableFields = getAvailableFields(layout);
+        updateAvailableFieldsDisplay(availableFields);
       }
 
       function detectAndDisplayFields() {
-        // TODO: Next step will implement this
-        const fieldsContainer = document.getElementById(
-          "smartMappingFieldsList"
+        const systemPrompt =
+          document.getElementById("smartMappingSystemPrompt")?.value || "";
+        const userPrompt =
+          document.getElementById("smartMappingUserPrompt")?.value || "";
+
+        currentFieldSuggestions = updateFieldDetectionDisplay(
+          systemPrompt,
+          userPrompt
         );
-        if (fieldsContainer) {
-          fieldsContainer.innerHTML =
-            '<div style="text-align: center; color: #6c757d; padding: 20px;">Field detection will be implemented in Step 4</div>';
-        }
       }
 
       function handleAutoMap() {
-        // TODO: Next step will implement this
-        alert("Auto-map functionality will be implemented in Step 4");
+        // Auto-map high confidence suggestions
+        const autoMapped = currentFieldSuggestions.filter(
+          (s) => s.confidence >= 80
+        );
+
+        if (autoMapped.length === 0) {
+          alert(
+            "No high-confidence matches found for auto-mapping. Please map fields manually."
+          );
+          return;
+        }
+
+        // Apply auto-mappings
+        autoMapped.forEach((suggestion) => {
+          suggestion.mappedField = suggestion.suggestedField.name;
+        });
+
+        // Update display
+        updateDetectedFieldsList(currentFieldSuggestions);
+        updateFieldStats(currentFieldSuggestions, currentFieldSuggestions);
+
+        // Show success message
+        const validationDiv = document.getElementById("smartMappingValidation");
+        if (validationDiv) {
+          validationDiv.innerHTML = `✅ Auto-mapped ${autoMapped.length} fields successfully!`;
+          validationDiv.style.color = "#28a745";
+
+          // Reset after 3 seconds
+          setTimeout(() => {
+            validationDiv.innerHTML = "Ready to save field mappings";
+            validationDiv.style.color = "#6c757d";
+          }, 3000);
+        }
       }
 
       function handleSave() {
-        // TODO: Next step will implement this
-        alert("Save functionality will be implemented in Step 6");
+        const systemPrompt =
+          document.getElementById("smartMappingSystemPrompt")?.value || "";
+        const userPrompt =
+          document.getElementById("smartMappingUserPrompt")?.value || "";
+
+        // TODO: Step 6 will implement saving to Qlik properties
+        console.log("Saving prompts and field mappings:", {
+          systemPrompt,
+          userPrompt,
+          fieldMappings: currentFieldSuggestions,
+        });
+
+        alert(
+          `Save functionality will be implemented in Step 6.\n\nDetected:\n- System Prompt: ${
+            systemPrompt ? "Configured" : "Empty"
+          }\n- User Prompt: ${
+            userPrompt ? "Configured" : "Empty"
+          }\n- Field Mappings: ${currentFieldSuggestions.length} detected`
+        );
         closeSmartFieldMappingModal();
       }
 
       function handlePromptChange() {
-        // TODO: Next step will implement this
-        console.log("Real-time field detection will be implemented in Step 4");
+        // Real-time field detection as user types
+        detectAndDisplayFields();
       }
       // ===== END MODAL FUNCTIONS =====
 
