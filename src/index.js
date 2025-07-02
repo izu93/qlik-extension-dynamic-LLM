@@ -633,6 +633,607 @@ export default function supernova() {
     </div>
   `;
       };
+
+      // ===== ADD ALL MODAL FUNCTIONS HERE =====
+      // NEW: Smart Field Mapping Modal Functions
+      function createSmartFieldMappingModal() {
+        // Check if modal already exists
+        if (document.getElementById("smartFieldMappingModal")) {
+          return;
+        }
+
+        // Create modal HTML
+        const modalHTML = `
+          <!-- Modal Overlay -->
+          <div id="smartFieldMappingModal" class="smart-mapping-modal-overlay">
+            <div class="smart-mapping-modal-container">
+              <!-- Modal Header -->
+              <div class="smart-mapping-modal-header">
+                <div class="smart-mapping-modal-title">
+                  <span>🧠🔀</span>
+                  Smart Field Mapping
+                </div>
+                <button class="smart-mapping-close-btn" onclick="closeSmartFieldMappingModal()">×</button>
+              </div>
+              
+              <!-- Modal Content -->
+              <div class="smart-mapping-modal-content">
+                <!-- Left Panel: Prompts -->
+                <div class="smart-mapping-prompts-panel">
+                  <div class="smart-mapping-prompt-section">
+                    <div class="smart-mapping-prompt-header">
+                      <span>🤖</span>
+                      System Prompt
+                    </div>
+                    <div class="smart-mapping-prompt-container">
+                      <textarea id="smartMappingSystemPrompt" class="smart-mapping-textarea" 
+                                placeholder="Enter your system prompt with {{field}} placeholders..."></textarea>
+                    </div>
+                  </div>
+                  
+                  <div class="smart-mapping-prompt-section">
+                    <div class="smart-mapping-prompt-header">
+                      <span>👤</span>
+                      User Prompt
+                    </div>
+                    <div class="smart-mapping-prompt-container">
+                      <textarea id="smartMappingUserPrompt" class="smart-mapping-textarea" 
+                                placeholder="Enter your user prompt with {{field}} placeholders..."></textarea>
+                    </div>
+                  </div>
+                </div>
+                
+                <!-- Right Panel: Field Mapping -->
+                <div class="smart-mapping-fields-panel">
+                  <!-- Detected Fields -->
+                  <div class="smart-mapping-section">
+                    <div class="smart-mapping-section-header">
+                      <span>🔍</span>
+                      Detected Fields
+                      <button id="smartMappingAutoMapBtn" class="smart-mapping-auto-map-btn">
+                        <span>✨</span>
+                        Auto-Map Fields
+                      </button>
+                    </div>
+                    <div id="smartMappingFieldsList" class="smart-mapping-fields-list">
+                      <!-- Fields will be populated here -->
+                    </div>
+                    <div id="smartMappingStats" class="smart-mapping-stats">
+                      <div class="smart-mapping-stat">
+                        <div class="smart-mapping-stat-number">0</div>
+                        <div class="smart-mapping-stat-label">Fields Detected</div>
+                      </div>
+                      <div class="smart-mapping-stat">
+                        <div class="smart-mapping-stat-number">0</div>
+                        <div class="smart-mapping-stat-label">Auto-Mapped</div>
+                      </div>
+                      <div class="smart-mapping-stat">
+                        <div class="smart-mapping-stat-number">0</div>
+                        <div class="smart-mapping-stat-label">Need Mapping</div>
+                      </div>
+                    </div>
+                  </div>
+                  
+                  <!-- Available Fields -->
+                  <div class="smart-mapping-section">
+                    <div class="smart-mapping-section-header">
+                      <span>📊</span>
+                      Available Data Fields
+                    </div>
+                    <div class="smart-mapping-available-fields">
+                      <div class="smart-mapping-field-group">
+                        <div class="smart-mapping-field-group-header">
+                          <span>🔷</span>
+                          Dimensions
+                        </div>
+                        <div id="smartMappingDimensions" class="smart-mapping-field-tags">
+                          <!-- Dimensions will be populated here -->
+                        </div>
+                      </div>
+                      <div class="smart-mapping-field-group">
+                        <div class="smart-mapping-field-group-header">
+                          <span>📈</span>
+                          Measures
+                        </div>
+                        <div id="smartMappingMeasures" class="smart-mapping-field-tags">
+                          <!-- Measures will be populated here -->
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                  
+                  <!-- Smart Suggestions -->
+                  <div class="smart-mapping-section">
+                    <div class="smart-mapping-section-header">
+                      <span>💡</span>
+                      Smart Suggestions
+                    </div>
+                    <div id="smartMappingSuggestions" class="smart-mapping-suggestions">
+                      <!-- Suggestions will be populated here -->
+                    </div>
+                  </div>
+                </div>
+              </div>
+              
+              <!-- Modal Footer -->
+              <div class="smart-mapping-modal-footer">
+                <div id="smartMappingValidation" class="smart-mapping-validation">
+                  Ready to configure field mappings
+                </div>
+                <div class="smart-mapping-actions">
+                  <button class="smart-mapping-btn smart-mapping-btn-secondary" onclick="closeSmartFieldMappingModal()">
+                    Cancel
+                  </button>
+                  <button id="smartMappingSaveBtn" class="smart-mapping-btn smart-mapping-btn-primary">
+                    <span>💾</span>
+                    Save
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        `;
+
+        // Add modal to page
+        document.body.insertAdjacentHTML("beforeend", modalHTML);
+
+        // Add modal styles
+        addSmartFieldMappingStyles();
+
+        // Set up modal event listeners
+        setupSmartFieldMappingEvents();
+
+        // Make modal globally accessible
+        window.openSmartFieldMappingModal = openSmartFieldMappingModal;
+        window.closeSmartFieldMappingModal = closeSmartFieldMappingModal;
+      }
+
+      function addSmartFieldMappingStyles() {
+        if (document.getElementById("smartFieldMappingStyles")) {
+          return;
+        }
+
+        const styles = `
+          <style id="smartFieldMappingStyles">
+            .smart-mapping-modal-overlay {
+              position: fixed;
+              top: 0;
+              left: 0;
+              width: 100%;
+              height: 100%;
+              background: rgba(0, 0, 0, 0.7);
+              backdrop-filter: blur(5px);
+              display: none;
+              align-items: center;
+              justify-content: center;
+              z-index: 10000;
+              font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
+            }
+            
+            .smart-mapping-modal-overlay.active {
+              display: flex;
+            }
+            
+            .smart-mapping-modal-container {
+              width: 95vw;
+              max-width: 1400px;
+              height: 90vh;
+              background: white;
+              border-radius: 20px;
+              box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+              display: flex;
+              flex-direction: column;
+              overflow: hidden;
+            }
+            
+            .smart-mapping-modal-header {
+              background: linear-gradient(135deg, #4a90e2 0%, #357abd 100%);
+              color: white;
+              padding: 20px 30px;
+              display: flex;
+              align-items: center;
+              justify-content: space-between;
+            }
+            
+            .smart-mapping-modal-title {
+              font-size: 20px;
+              font-weight: 600;
+              display: flex;
+              align-items: center;
+              gap: 10px;
+            }
+            
+            .smart-mapping-close-btn {
+              background: rgba(255,255,255,0.2);
+              border: none;
+              color: white;
+              width: 40px;
+              height: 40px;
+              border-radius: 50%;
+              cursor: pointer;
+              font-size: 24px;
+              display: flex;
+              align-items: center;
+              justify-content: center;
+            }
+            
+            .smart-mapping-close-btn:hover {
+              background: rgba(255,255,255,0.3);
+            }
+            
+            .smart-mapping-modal-content {
+              flex: 1;
+              display: grid;
+              grid-template-columns: 1fr 500px;
+              overflow: hidden;
+            }
+            
+            .smart-mapping-prompts-panel {
+              padding: 30px;
+              display: flex;
+              flex-direction: column;
+              gap: 20px;
+              border-right: 1px solid #e0e0e0;
+              overflow-y: auto;
+            }
+            
+            .smart-mapping-prompt-section {
+              flex: 1;
+              display: flex;
+              flex-direction: column;
+            }
+            
+            .smart-mapping-prompt-header {
+              font-size: 16px;
+              font-weight: 600;
+              color: #495057;
+              margin-bottom: 12px;
+              display: flex;
+              align-items: center;
+              gap: 8px;
+            }
+            
+            .smart-mapping-prompt-container {
+              flex: 1;
+              border: 2px solid #e0e0e0;
+              border-radius: 12px;
+              overflow: hidden;
+            }
+            
+            .smart-mapping-prompt-container:focus-within {
+              border-color: #4a90e2;
+            }
+            
+            .smart-mapping-textarea {
+              width: 100%;
+              height: 100%;
+              min-height: 200px;
+              padding: 20px;
+              border: none;
+              font-family: 'SF Mono', 'Monaco', monospace;
+              font-size: 14px;
+              line-height: 1.6;
+              resize: none;
+              background: #fafafa;
+              box-sizing: border-box;
+            }
+            
+            .smart-mapping-textarea:focus {
+              outline: none;
+              background: white;
+            }
+            
+            .smart-mapping-fields-panel {
+              background: #f8f9fa;
+              padding: 30px;
+              overflow-y: auto;
+              display: flex;
+              flex-direction: column;
+              gap: 24px;
+            }
+            
+            .smart-mapping-section {
+              background: white;
+              border-radius: 12px;
+              overflow: hidden;
+              box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+            }
+            
+            .smart-mapping-section-header {
+              background: #f8f9fa;
+              padding: 16px 20px;
+              border-bottom: 1px solid #e0e0e0;
+              font-size: 16px;
+              font-weight: 600;
+              color: #495057;
+              display: flex;
+              align-items: center;
+              justify-content: space-between;
+              gap: 10px;
+            }
+            
+            .smart-mapping-auto-map-btn {
+              background: #28a745;
+              color: white;
+              border: none;
+              padding: 6px 12px;
+              border-radius: 16px;
+              font-size: 11px;
+              font-weight: 600;
+              cursor: pointer;
+              display: flex;
+              align-items: center;
+              gap: 4px;
+            }
+            
+            .smart-mapping-auto-map-btn:hover {
+              background: #218838;
+            }
+            
+            .smart-mapping-fields-list {
+              padding: 20px;
+              min-height: 60px;
+            }
+            
+            .smart-mapping-stats {
+              padding: 16px 20px;
+              display: flex;
+              justify-content: space-around;
+              background: #f8f9fa;
+              border-top: 1px solid #e0e0e0;
+            }
+            
+            .smart-mapping-stat {
+              text-align: center;
+            }
+            
+            .smart-mapping-stat-number {
+              font-size: 20px;
+              font-weight: bold;
+              color: #4a90e2;
+            }
+            
+            .smart-mapping-stat-label {
+              font-size: 10px;
+              color: #6c757d;
+              text-transform: uppercase;
+            }
+            
+            .smart-mapping-available-fields {
+              padding: 20px;
+            }
+            
+            .smart-mapping-field-group {
+              margin-bottom: 16px;
+            }
+            
+            .smart-mapping-field-group-header {
+              font-size: 12px;
+              font-weight: 600;
+              color: #6c757d;
+              margin-bottom: 8px;
+              display: flex;
+              align-items: center;
+              gap: 6px;
+            }
+            
+            .smart-mapping-field-tags {
+              display: flex;
+              flex-wrap: wrap;
+              gap: 6px;
+            }
+            
+            .smart-mapping-field-tag {
+              padding: 4px 8px;
+              border-radius: 12px;
+              font-size: 10px;
+              font-weight: 500;
+              cursor: pointer;
+              transition: all 0.2s ease;
+              border: 1px solid transparent;
+            }
+            
+            .smart-mapping-field-tag.dimension {
+              background: #e3f2fd;
+              color: #1565c0;
+              border-color: #90caf9;
+            }
+            
+            .smart-mapping-field-tag.measure {
+              background: #fff3e0;
+              color: #ef6c00;
+              border-color: #ffb74d;
+            }
+            
+            .smart-mapping-field-tag:hover {
+              transform: translateY(-1px);
+              box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            }
+            
+            .smart-mapping-suggestions {
+              padding: 20px;
+              background: #fff9c4;
+              font-size: 11px;
+              color: #856404;
+              line-height: 1.4;
+            }
+            
+            .smart-mapping-modal-footer {
+              padding: 20px 30px;
+              background: #f8f9fa;
+              border-top: 1px solid #e0e0e0;
+              display: flex;
+              justify-content: space-between;
+              align-items: center;
+            }
+            
+            .smart-mapping-validation {
+              font-size: 12px;
+              color: #6c757d;
+            }
+            
+            .smart-mapping-actions {
+              display: flex;
+              gap: 12px;
+            }
+            
+            .smart-mapping-btn {
+              padding: 10px 20px;
+              border: none;
+              border-radius: 8px;
+              font-weight: 600;
+              cursor: pointer;
+              font-size: 14px;
+              display: flex;
+              align-items: center;
+              gap: 6px;
+            }
+            
+            .smart-mapping-btn-primary {
+              background: linear-gradient(135deg, #4a90e2 0%, #357abd 100%);
+              color: white;
+            }
+            
+            .smart-mapping-btn-primary:hover {
+              transform: translateY(-1px);
+              box-shadow: 0 4px 12px rgba(74, 144, 226, 0.3);
+            }
+            
+            .smart-mapping-btn-secondary {
+              background: #f8f9fa;
+              color: #6c757d;
+              border: 1px solid #e0e0e0;
+            }
+            
+            .smart-mapping-btn-secondary:hover {
+              background: #e9ecef;
+            }
+            
+            @media (max-width: 1200px) {
+              .smart-mapping-modal-content {
+                grid-template-columns: 1fr;
+              }
+              
+              .smart-mapping-fields-panel {
+                border-top: 1px solid #e0e0e0;
+                border-right: none;
+              }
+            }
+          </style>
+        `;
+
+        document.head.insertAdjacentHTML("beforeend", styles);
+      }
+
+      // ... other modal functions
+      function setupSmartFieldMappingEvents() {
+        // Auto-map button
+        document
+          .getElementById("smartMappingAutoMapBtn")
+          ?.addEventListener("click", handleAutoMap);
+
+        // Save button
+        document
+          .getElementById("smartMappingSaveBtn")
+          ?.addEventListener("click", handleSave);
+
+        // Prompt text changes
+        document
+          .getElementById("smartMappingSystemPrompt")
+          ?.addEventListener("input", handlePromptChange);
+        document
+          .getElementById("smartMappingUserPrompt")
+          ?.addEventListener("input", handlePromptChange);
+
+        // Close on overlay click
+        document
+          .getElementById("smartFieldMappingModal")
+          ?.addEventListener("click", function (e) {
+            if (e.target === this) {
+              closeSmartFieldMappingModal();
+            }
+          });
+      }
+
+      function openSmartFieldMappingModal(data) {
+        const modal = document.getElementById("smartFieldMappingModal");
+        if (!modal) return;
+
+        // Load current prompts
+        const systemPrompt = data?.props?.systemPrompt || "";
+        const userPrompt = data?.props?.userPrompt || "";
+
+        document.getElementById("smartMappingSystemPrompt").value =
+          systemPrompt;
+        document.getElementById("smartMappingUserPrompt").value = userPrompt;
+
+        // Load available fields
+        loadAvailableFields();
+
+        // Detect fields in prompts
+        detectAndDisplayFields();
+
+        // Show modal
+        modal.classList.add("active");
+        document.body.style.overflow = "hidden";
+      }
+
+      function closeSmartFieldMappingModal() {
+        const modal = document.getElementById("smartFieldMappingModal");
+        if (modal) {
+          modal.classList.remove("active");
+          document.body.style.overflow = "auto";
+        }
+      }
+
+      function loadAvailableFields() {
+        // TODO: Next step will implement this
+        const dimensionsContainer = document.getElementById(
+          "smartMappingDimensions"
+        );
+        const measuresContainer = document.getElementById(
+          "smartMappingMeasures"
+        );
+
+        if (dimensionsContainer) {
+          dimensionsContainer.innerHTML =
+            '<div class="smart-mapping-field-tag dimension">Loading...</div>';
+        }
+
+        if (measuresContainer) {
+          measuresContainer.innerHTML =
+            '<div class="smart-mapping-field-tag measure">Loading...</div>';
+        }
+      }
+
+      function detectAndDisplayFields() {
+        // TODO: Next step will implement this
+        const fieldsContainer = document.getElementById(
+          "smartMappingFieldsList"
+        );
+        if (fieldsContainer) {
+          fieldsContainer.innerHTML =
+            '<div style="text-align: center; color: #6c757d; padding: 20px;">Field detection will be implemented in Step 4</div>';
+        }
+      }
+
+      function handleAutoMap() {
+        // TODO: Next step will implement this
+        alert("Auto-map functionality will be implemented in Step 4");
+      }
+
+      function handleSave() {
+        // TODO: Next step will implement this
+        alert("Save functionality will be implemented in Step 6");
+        closeSmartFieldMappingModal();
+      }
+
+      function handlePromptChange() {
+        // TODO: Next step will implement this
+        console.log("Real-time field detection will be implemented in Step 4");
+      }
+      // ===== END MODAL FUNCTIONS =====
+
       // Main effect hook - Re-run when layout changes (selections, filters, etc.)
       useEffect(() => {
         if (!element) return;
@@ -1019,6 +1620,9 @@ export default function supernova() {
           if (generateButton) {
             generateButton.onclick = handleGenerate;
           }
+
+          // NEW: Add modal to the page
+          createSmartFieldMappingModal();
         };
 
         render();
