@@ -1829,6 +1829,30 @@ export default function supernova() {
         // Detect fields in current prompts
         detectAndDisplayFields();
 
+        // Auto-apply high confidence mappings on modal open
+        setTimeout(() => {
+          if (currentFieldSuggestions.length > 0) {
+            const highConfidenceSuggestions = currentFieldSuggestions.filter(
+              (s) => s.confidence >= 80 && s.suggestedField
+            );
+            if (highConfidenceSuggestions.length > 0) {
+              // Automatically apply high confidence mappings
+              highConfidenceSuggestions.forEach((suggestion) => {
+                suggestion.mappedField = suggestion.suggestedField.name;
+              });
+
+              // Update displays
+              updateDetectedFieldsList(currentFieldSuggestions);
+              updateFieldStats(
+                currentFieldSuggestions,
+                currentFieldSuggestions
+              );
+              updateSmartSuggestions(currentFieldSuggestions);
+              updateMappingValidation();
+            }
+          }
+        }, 100);
+
         // Show modal
         modal.classList.add("active");
         document.body.style.overflow = "hidden";
