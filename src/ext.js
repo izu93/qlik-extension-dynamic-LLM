@@ -117,13 +117,17 @@ export default {
             type: "string",
             component: "text",
             label: "Service Info",
-            show: "ℹ️ Uses external Claude SSE connection configured in data connection for advanced analysis.",
+            show: function (data) {
+              return data.props?.connectionType === "claude";
+            },
+            defaultValue:
+              "ℹ️ Uses external Claude SSE connection configured in data connection for advanced analysis.",
           },
-          // NEW: Smart Field Mapping Button
+          // NEW: Smart Field Mapping Button - Always show for Claude
           smartFieldMapping: {
             type: "string",
             component: "button",
-            label: "🧠🔀 Smart Field Mapping",
+            label: "🔀Prompts & Field Mapping",
             ref: "props.openFieldMapping",
             action: function (data) {
               // This will trigger the modal
@@ -137,9 +141,7 @@ export default {
             },
             show: function (data) {
               const isClaudeSelected = data.props?.connectionType === "claude";
-              const hasPrompts =
-                data.props?.systemPrompt || data.props?.userPrompt;
-              return isClaudeSelected && hasPrompts;
+              return isClaudeSelected;
             },
           },
 
@@ -147,14 +149,14 @@ export default {
           fieldMappingStatus: {
             type: "string",
             component: "text",
-            label: "Field Mapping Status",
+            label: "Configuration Status",
             show: function (data) {
               const systemPrompt = data.props?.systemPrompt || "";
               const userPrompt = data.props?.userPrompt || "";
               const fieldMappings = data.props?.fieldMappings || [];
 
               if (!systemPrompt && !userPrompt) {
-                return "💡 Add prompts to enable Smart Field Mapping";
+                return "⚙️ Click 'Prompts & Field Mapping' to get started";
               }
 
               const allPlaceholders = detectPlaceholdersInPrompts(
@@ -163,7 +165,7 @@ export default {
               );
 
               if (allPlaceholders.length === 0) {
-                return "💡 Add {{field}} placeholders to use Smart Mapping";
+                return "✅ Prompts configured (no field placeholders detected)";
               }
 
               const mappedCount = fieldMappings.filter(
@@ -171,39 +173,13 @@ export default {
               ).length;
 
               if (mappedCount === allPlaceholders.length) {
-                return `✅ All ${allPlaceholders.length} fields mapped successfully`;
+                return `✅ All prompts configured with ${allPlaceholders.length} fields mapped`;
               } else {
-                return `⚠️ ${allPlaceholders.length - mappedCount} of ${
-                  allPlaceholders.length
-                } fields need mapping`;
+                return `⚠️ Prompts configured, ${
+                  allPlaceholders.length - mappedCount
+                } of ${allPlaceholders.length} fields need mapping`;
               }
             },
-          },
-          systemPrompt: {
-            type: "string",
-            component: "textarea",
-            label: "System Prompt",
-            ref: "props.systemPrompt",
-            defaultValue: "",
-            show: function (data) {
-              const connectionType = data.props?.connectionType || "claude";
-              return connectionType === "claude";
-            },
-            maxlength: 8000,
-            rows: 6,
-          },
-          userPrompt: {
-            type: "string",
-            component: "textarea",
-            label: "User Prompt",
-            ref: "props.userPrompt",
-            defaultValue: "",
-            show: function (data) {
-              const connectionType = data.props?.connectionType || "claude";
-              return connectionType === "claude";
-            },
-            maxlength: 8000,
-            rows: 6,
           },
           // NEW: Hidden field mappings storage
           fieldMappings: {
@@ -224,6 +200,18 @@ export default {
                 type: "string", // "system" or "user"
               },
             },
+          },
+
+          // Hidden system and user prompts (configured in modal only)
+          systemPrompt: {
+            type: "string",
+            ref: "props.systemPrompt",
+            show: false, // Hidden from UI
+          },
+          userPrompt: {
+            type: "string",
+            ref: "props.userPrompt",
+            show: false, // Hidden from UI
           },
 
           temperature: {

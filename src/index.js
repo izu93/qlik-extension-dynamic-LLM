@@ -1314,9 +1314,14 @@ export default function supernova() {
             !props.systemPrompt ||
             !props.userPrompt
           ) {
+            const missingItems = [];
+            if (!props.connectionName) missingItems.push("Connection");
+            if (!props.systemPrompt || !props.userPrompt)
+              missingItems.push("Prompts");
+
             content += `
               <div style="background: #fff3cd; border: 1px solid #ffeaa7; border-radius: 6px; padding: 6px 10px; font-size: 11px; color: #856404; white-space: nowrap;">
-                ⚙️ Configuration Required
+                ⚙️ Setup: ${missingItems.join(", ")}
               </div>
             `;
           } else if (!validation.valid) {
@@ -1347,16 +1352,17 @@ export default function supernova() {
           ) {
             // Configuration needed
             const missingItems = [];
-            if (!props.connectionName) missingItems.push("Connection Name");
-            if (!props.systemPrompt) missingItems.push("System Prompt");
-            if (!props.userPrompt) missingItems.push("User Prompt");
+            if (!props.connectionName)
+              missingItems.push("Claude Connection Name");
+            if (!props.systemPrompt || !props.userPrompt)
+              missingItems.push("System & User Prompts");
 
             content += `
               <div style="flex: 1; display: flex; align-items: center; justify-content: center; background: #f8f9fa; border: 2px dashed #dee2e6; border-radius: 12px; text-align: center; color: #6c757d; padding: 20px; min-height: 150px;">
                 <div style="max-width: 400px;">
                   <div style="font-size: 48px; margin-bottom: 12px; opacity: 0.3;">⚙️</div>
                   <h3 style="margin: 0 0 6px 0; color: #495057; font-size: 16px;">Configuration Required</h3>
-                  <p style="margin: 0 0 8px 0; font-size: 13px;">Please configure the following in the properties panel:</p>
+                  <p style="margin: 0 0 8px 0; font-size: 13px;">Please configure the following:</p>
                   <p style="margin: 0 0 12px 0; font-size: 13px; font-weight: 500; color: #dc3545;">${missingItems.join(
                     ", "
                   )}</p>
@@ -1364,10 +1370,18 @@ export default function supernova() {
                   <div style="background: #e3f2fd; border: 1px solid #90caf9; border-radius: 8px; padding: 10px 12px; margin-top: 12px; font-size: 11px; color: #1565c0; text-align: left; line-height: 1.3;">
                     <div style="font-weight: 600; margin-bottom: 4px;">💡 Quick Setup:</div>
                     <div>
-                      • Set your Claude SSE connection name<br>
-                      • Add system and user prompts with {{fieldName}} placeholders<br>
-                      • Enable custom validation with GetPossibleCount() expressions<br>
-                      • Use any field names from your data model
+                      ${
+                        !props.connectionName
+                          ? "• Set your Claude SSE connection name in LLM Configuration<br>"
+                          : ""
+                      }
+                      ${
+                        !props.systemPrompt || !props.userPrompt
+                          ? '• Click "Configure Prompts & Field Mapping" to set up prompts<br>'
+                          : ""
+                      }
+                      • Use {{fieldName}} placeholders in prompts for dynamic data<br>
+                      • Enable custom validation with GetPossibleCount() expressions
                     </div>
                   </div>
                 </div>
