@@ -376,7 +376,7 @@ export default function supernova() {
         return infoStrings.join(" | ");
       };
 
-      // Dynamic field replacement function - works with any fields
+      // Enhanced dynamic field replacement function - uses saved field mappings
       const replaceDynamicFields = (promptText, layout) => {
         if (!layout.qHyperCube?.qDataPages?.[0]?.qMatrix?.length) {
           return promptText;
@@ -385,8 +385,73 @@ export default function supernova() {
         const matrix = layout.qHyperCube.qDataPages[0].qMatrix;
         const dimensionInfo = layout.qHyperCube.qDimensionInfo || [];
         const measureInfo = layout.qHyperCube.qMeasureInfo || [];
+        const props = layout?.props || {};
 
-        // Create field mappings dynamically
+        // Use saved field mappings if available
+        const savedMappings = props.fieldMappings || [];
+
+        if (savedMappings.length > 0) {
+          // Use saved mappings for precise field replacement
+          let replacedPrompt = promptText;
+
+          savedMappings.forEach((mapping) => {
+            if (mapping.mappedField && mapping.placeholder) {
+              // Find the mapped field in dimensions or measures
+              let fieldValue = "";
+
+              // Check dimensions
+              const dimIndex = dimensionInfo.findIndex(
+                (dim) => dim.qFallbackTitle === mapping.mappedField
+              );
+
+              if (dimIndex !== -1) {
+                const values = matrix
+                  .map(
+                    (row) => row[dimIndex]?.qText || row[dimIndex]?.qNum || ""
+                  )
+                  .filter((v) => v !== "");
+                const uniqueValues = [...new Set(values)];
+                fieldValue = uniqueValues.slice(0, 5).join(", ");
+              } else {
+                // Check measures
+                const measureIndex = measureInfo.findIndex(
+                  (measure) => measure.qFallbackTitle === mapping.mappedField
+                );
+
+                if (measureIndex !== -1) {
+                  const dimCount = dimensionInfo.length;
+                  const values = matrix.map((row) => {
+                    const val =
+                      row[dimCount + measureIndex]?.qNum ||
+                      row[dimCount + measureIndex]?.qText ||
+                      0;
+                    return parseFloat(val) || 0;
+                  });
+                  fieldValue = values
+                    .slice(0, 5)
+                    .map((v) => v.toString())
+                    .join(", ");
+                }
+              }
+
+              // Replace the placeholder with actual field value
+              if (fieldValue) {
+                const placeholderRegex = new RegExp(
+                  mapping.placeholder.replace(/[{}]/g, "\\$&"),
+                  "g"
+                );
+                replacedPrompt = replacedPrompt.replace(
+                  placeholderRegex,
+                  fieldValue
+                );
+              }
+            }
+          });
+
+          return replacedPrompt;
+        }
+
+        // Fallback to automatic field detection (original behavior)
         const fieldMap = {};
 
         // Add dimensions
@@ -1829,27 +1894,39 @@ export default function supernova() {
         // Detect fields in current prompts
         detectAndDisplayFields();
 
-        // Auto-apply high confidence mappings on modal open
+        // Load saved field mappings if they exist
+        const savedMappings = data?.props?.fieldMappings || [];
+
         setTimeout(() => {
           if (currentFieldSuggestions.length > 0) {
+            // Apply saved mappings first
+            if (savedMappings.length > 0) {
+              currentFieldSuggestions.forEach((suggestion) => {
+                const savedMapping = savedMappings.find(
+                  (saved) => saved.placeholder === suggestion.placeholder
+                );
+                if (savedMapping && savedMapping.mappedField) {
+                  suggestion.mappedField = savedMapping.mappedField;
+                }
+              });
+            }
+
+            // Then auto-apply high confidence mappings for any unmapped fields
             const highConfidenceSuggestions = currentFieldSuggestions.filter(
-              (s) => s.confidence >= 80 && s.suggestedField
+              (s) => s.confidence >= 80 && s.suggestedField && !s.mappedField
             );
+
             if (highConfidenceSuggestions.length > 0) {
-              // Automatically apply high confidence mappings
               highConfidenceSuggestions.forEach((suggestion) => {
                 suggestion.mappedField = suggestion.suggestedField.name;
               });
-
-              // Update displays
-              updateDetectedFieldsList(currentFieldSuggestions);
-              updateFieldStats(
-                currentFieldSuggestions,
-                currentFieldSuggestions
-              );
-              updateSmartSuggestions(currentFieldSuggestions);
-              updateMappingValidation();
             }
+
+            // Update displays
+            updateDetectedFieldsList(currentFieldSuggestions);
+            updateFieldStats(currentFieldSuggestions, currentFieldSuggestions);
+            updateSmartSuggestions(currentFieldSuggestions);
+            updateMappingValidation();
           }
         }, 100);
 
@@ -1933,27 +2010,498 @@ export default function supernova() {
         }
       }
 
+      // CORRECT handleSave function for Nebula.js extensions:
+      // IMPROVED handleSave function that works better in Qlik Cloud:
+
       function handleSave() {
         const systemPrompt =
           document.getElementById("smartMappingSystemPrompt")?.value || "";
         const userPrompt =
           document.getElementById("smartMappingUserPrompt")?.value || "";
 
-        // TODO: Step 6 will implement saving to Qlik properties
-        console.log("Saving prompts and field mappings:", {
-          systemPrompt,
-          userPrompt,
-          fieldMappings: currentFieldSuggestions,
-        });
+        // 🆕 VALIDATION: Require at least one prompt
+        if (!systemPrompt.trim() && !userPrompt.trim()) {
+          alert(
+            "⚠️ Please add at least one prompt (System or User) before saving."
+          );
+          return;
+        }
 
+        // 🆕 CHECK MAPPING COMPLETENESS: Warn about unmapped fields
+        const totalFields = currentFieldSuggestions.length;
+        const mappedFields = currentFieldSuggestions.filter(
+          (s) => s.mappedField
+        ).length;
+
+        if (totalFields > 0 && mappedFields < totalFields) {
+          const unmappedFields = currentFieldSuggestions
+            .filter((s) => !s.mappedField)
+            .map((s) => s.placeholder)
+            .join(", ");
+
+          const proceed = confirm(
+            `⚠️ Warning: ${
+              totalFields - mappedFields
+            } fields are not mapped:\n${unmappedFields}\n\nThese placeholders will not be replaced with actual data.\n\nDo you want to save anyway?`
+          );
+
+          if (!proceed) {
+            return;
+          }
+        }
+
+        // 🔧 IMPROVED: Use localStorage for session persistence + direct property update
+        try {
+          const fieldMappingsData = currentFieldSuggestions.map((s) => ({
+            placeholder: s.placeholder,
+            fieldName: s.fieldName,
+            mappedField: s.mappedField || null,
+            source: s.source,
+            confidence: s.confidence,
+            suggestedField: s.suggestedField?.name || null,
+          }));
+
+          // Save to localStorage for session persistence
+          const saveData = {
+            systemPrompt,
+            userPrompt,
+            fieldMappings: fieldMappingsData,
+            timestamp: Date.now(),
+            objectId: layout.qInfo?.qId,
+          };
+
+          localStorage.setItem(
+            `dynamicLLM_${layout.qInfo?.qId}`,
+            JSON.stringify(saveData)
+          );
+
+          // Also update layout properties directly for immediate use
+          if (layout && layout.props) {
+            layout.props.systemPrompt = systemPrompt;
+            layout.props.userPrompt = userPrompt;
+            layout.props.fieldMappings = fieldMappingsData;
+          }
+
+          // Show success message
+          handleSaveSuccess(mappedFields, totalFields);
+
+          console.log("✅ Configuration saved to localStorage and memory");
+
+          // Inform user about persistence
+          setTimeout(() => {
+            const validationDiv = document.getElementById(
+              "smartMappingValidation"
+            );
+            if (validationDiv) {
+              validationDiv.innerHTML = `💾 Saved to session! Settings will persist until browser refresh.`;
+              validationDiv.style.color = "#2196f3";
+            }
+          }, 2000);
+        } catch (error) {
+          console.error("Save failed:", error);
+          handleSaveError(error);
+        }
+      }
+
+      // NEW: Function to load saved data on component initialization
+      function loadSavedConfiguration() {
+        try {
+          const objectId = layout?.qInfo?.qId;
+          if (!objectId) return false;
+
+          const savedData = localStorage.getItem(`dynamicLLM_${objectId}`);
+          if (!savedData) return false;
+
+          const data = JSON.parse(savedData);
+
+          // Check if data is recent (within 24 hours)
+          const isRecent = Date.now() - data.timestamp < 24 * 60 * 60 * 1000;
+          if (!isRecent) {
+            localStorage.removeItem(`dynamicLLM_${objectId}`);
+            return false;
+          }
+
+          // Apply saved data to layout
+          if (layout && layout.props) {
+            layout.props.systemPrompt = data.systemPrompt || "";
+            layout.props.userPrompt = data.userPrompt || "";
+            layout.props.fieldMappings = data.fieldMappings || [];
+          }
+
+          console.log("✅ Loaded saved configuration from localStorage");
+          return true;
+        } catch (error) {
+          console.error("Failed to load saved configuration:", error);
+          return false;
+        }
+      }
+
+      // UPDATED: Enhanced openSmartFieldMappingModal to load from localStorage
+      function openSmartFieldMappingModal(data) {
+        const modal = document.getElementById("smartFieldMappingModal");
+        if (!modal) return;
+
+        // Try to load from localStorage first, then fallback to data props
+        const loadedFromStorage = loadSavedConfiguration();
+
+        const systemPrompt =
+          layout?.props?.systemPrompt || data?.props?.systemPrompt || "";
+        const userPrompt =
+          layout?.props?.userPrompt || data?.props?.userPrompt || "";
+
+        document.getElementById("smartMappingSystemPrompt").value =
+          systemPrompt;
+        document.getElementById("smartMappingUserPrompt").value = userPrompt;
+
+        // Load available fields from current layout
+        loadAvailableFields();
+
+        // Detect fields in current prompts
+        detectAndDisplayFields();
+
+        // Load saved field mappings (prioritize localStorage, then props)
+        const savedMappings =
+          layout?.props?.fieldMappings || data?.props?.fieldMappings || [];
+
+        setTimeout(() => {
+          if (currentFieldSuggestions.length > 0) {
+            // Apply saved mappings first
+            if (savedMappings.length > 0) {
+              currentFieldSuggestions.forEach((suggestion) => {
+                const savedMapping = savedMappings.find(
+                  (saved) => saved.placeholder === suggestion.placeholder
+                );
+                if (savedMapping && savedMapping.mappedField) {
+                  suggestion.mappedField = savedMapping.mappedField;
+                }
+              });
+            }
+
+            // Then auto-apply high confidence mappings for any unmapped fields
+            const highConfidenceSuggestions = currentFieldSuggestions.filter(
+              (s) => s.confidence >= 80 && s.suggestedField && !s.mappedField
+            );
+
+            if (highConfidenceSuggestions.length > 0) {
+              highConfidenceSuggestions.forEach((suggestion) => {
+                suggestion.mappedField = suggestion.suggestedField.name;
+              });
+            }
+
+            // Update displays
+            updateDetectedFieldsList(currentFieldSuggestions);
+            updateFieldStats(currentFieldSuggestions, currentFieldSuggestions);
+            updateSmartSuggestions(currentFieldSuggestions);
+            updateMappingValidation();
+          }
+
+          // Show status if loaded from storage
+          if (loadedFromStorage) {
+            const validationDiv = document.getElementById(
+              "smartMappingValidation"
+            );
+            if (validationDiv) {
+              validationDiv.innerHTML = `📂 Previous session data loaded automatically`;
+              validationDiv.style.color = "#2196f3";
+
+              setTimeout(() => {
+                updateMappingValidation(); // Restore normal validation status after 3 seconds
+              }, 3000);
+            }
+          }
+        }, 100);
+
+        // Show modal
+        modal.classList.add("active");
+        document.body.style.overflow = "hidden";
+      }
+
+      // ADD: Function to auto-load configuration when component initializes
+      function initializeWithSavedData() {
+        const loaded = loadSavedConfiguration();
+        if (loaded) {
+          console.log("🔄 Auto-loaded previous session configuration");
+        }
+      }
+
+      // 3. ADD a cleanup function to manage localStorage (optional - for better memory management):
+      function cleanupOldSavedData() {
+        try {
+          const keys = Object.keys(localStorage).filter((key) =>
+            key.startsWith("dynamicLLM_")
+          );
+          keys.forEach((key) => {
+            try {
+              const data = JSON.parse(localStorage.getItem(key));
+              const isOld =
+                Date.now() - data.timestamp > 7 * 24 * 60 * 60 * 1000; // 7 days
+              if (isOld) {
+                localStorage.removeItem(key);
+                console.log(`🧹 Cleaned up old saved data: ${key}`);
+              }
+            } catch (e) {
+              localStorage.removeItem(key); // Remove corrupted data
+            }
+          });
+        } catch (error) {
+          console.error("Cleanup failed:", error);
+        }
+      }
+
+      // ALSO UPDATE: The field replacement function to use the saved mappings
+      const replaceDynamicFieldsEnhanced = (promptText, layout) => {
+        if (!layout.qHyperCube?.qDataPages?.[0]?.qMatrix?.length) {
+          return promptText;
+        }
+
+        const matrix = layout.qHyperCube.qDataPages[0].qMatrix;
+        const dimensionInfo = layout.qHyperCube.qDimensionInfo || [];
+        const measureInfo = layout.qHyperCube.qMeasureInfo || [];
+
+        // Try to get saved mappings from layout props (which now includes localStorage data)
+        const savedMappings = layout?.props?.fieldMappings || [];
+
+        if (savedMappings.length > 0) {
+          // Use saved mappings for precise field replacement
+          let replacedPrompt = promptText;
+
+          savedMappings.forEach((mapping) => {
+            if (mapping.mappedField && mapping.placeholder) {
+              // Find the mapped field in dimensions or measures
+              let fieldValue = "";
+
+              // Check dimensions
+              const dimIndex = dimensionInfo.findIndex(
+                (dim) => dim.qFallbackTitle === mapping.mappedField
+              );
+
+              if (dimIndex !== -1) {
+                const values = matrix
+                  .map(
+                    (row) => row[dimIndex]?.qText || row[dimIndex]?.qNum || ""
+                  )
+                  .filter((v) => v !== "");
+                const uniqueValues = [...new Set(values)];
+                fieldValue = uniqueValues.slice(0, 5).join(", ");
+              } else {
+                // Check measures
+                const measureIndex = measureInfo.findIndex(
+                  (measure) => measure.qFallbackTitle === mapping.mappedField
+                );
+
+                if (measureIndex !== -1) {
+                  const dimCount = dimensionInfo.length;
+                  const values = matrix.map((row) => {
+                    const val =
+                      row[dimCount + measureIndex]?.qNum ||
+                      row[dimCount + measureIndex]?.qText ||
+                      0;
+                    return parseFloat(val) || 0;
+                  });
+                  fieldValue = values
+                    .slice(0, 5)
+                    .map((v) => v.toString())
+                    .join(", ");
+                }
+              }
+
+              // Replace the placeholder with actual field value
+              if (fieldValue) {
+                const placeholderRegex = new RegExp(
+                  mapping.placeholder.replace(/[{}]/g, "\\$&"),
+                  "g"
+                );
+                replacedPrompt = replacedPrompt.replace(
+                  placeholderRegex,
+                  fieldValue
+                );
+              }
+            }
+          });
+
+          return replacedPrompt;
+        }
+
+        // Fallback to original field replacement logic
+        return replaceDynamicFields(promptText, layout);
+      };
+      // Fallback save method - directly modify layout properties
+      function attemptFallbackSave(
+        systemPrompt,
+        userPrompt,
+        mappedFields,
+        totalFields
+      ) {
+        try {
+          // Directly modify the layout properties (this might work in some Nebula.js contexts)
+          if (layout && layout.props) {
+            layout.props.systemPrompt = systemPrompt;
+            layout.props.userPrompt = userPrompt;
+            layout.props.fieldMappings = currentFieldSuggestions.map((s) => ({
+              placeholder: s.placeholder,
+              fieldName: s.fieldName,
+              mappedField: s.mappedField || null,
+              source: s.source,
+              confidence: s.confidence,
+              suggestedField: s.suggestedField?.name || null,
+            }));
+
+            // Show success message
+            handleSaveSuccess(mappedFields, totalFields);
+
+            console.log(
+              "Fallback save completed - properties updated in memory"
+            );
+            console.log(
+              "Note: Changes may not persist until object is saved through Qlik interface"
+            );
+          } else {
+            throw new Error("Layout properties not accessible");
+          }
+        } catch (fallbackError) {
+          console.error("Fallback save also failed:", fallbackError);
+          handleSaveError(fallbackError);
+        }
+      }
+
+      // Helper function for save success
+      function handleSaveSuccess(mappedFields, totalFields) {
+        const validationDiv = document.getElementById("smartMappingValidation");
+        if (validationDiv) {
+          validationDiv.innerHTML = `✅ Configuration saved successfully! ${mappedFields}/${totalFields} fields mapped.`;
+          validationDiv.style.color = "#28a745";
+
+          // Auto-close modal
+          setTimeout(() => {
+            closeSmartFieldMappingModal();
+            // Force a re-render by calling the component's useEffect
+            if (typeof window.forceRerender === "function") {
+              window.forceRerender();
+            }
+          }, 1500);
+        }
+      }
+
+      // Helper function for save errors
+      function handleSaveError(error) {
+        console.error("Save error:", error);
+        const validationDiv = document.getElementById("smartMappingValidation");
+        if (validationDiv) {
+          validationDiv.innerHTML = `❌ Error saving configuration: ${error.message}`;
+          validationDiv.style.color = "#dc3545";
+        }
+
+        // Show a more user-friendly error message
         alert(
-          `Save functionality will be implemented in Step 6.\n\nDetected:\n- System Prompt: ${
-            systemPrompt ? "Configured" : "Empty"
-          }\n- User Prompt: ${
-            userPrompt ? "Configured" : "Empty"
-          }\n- Field Mappings: ${currentFieldSuggestions.length} detected`
+          `❌ Unable to save configuration automatically.\n\nThis may be due to Qlik security restrictions.\n\nAs a workaround:\n1. Copy your prompts to a text file\n2. Close this modal\n3. Re-open the modal and paste your prompts\n4. Reconfigure field mappings\n\nThe extension will work with your settings during this session.`
         );
-        closeSmartFieldMappingModal();
+      }
+
+      // ALSO ADD: Enhanced field replacement that uses saved mappings
+      const replaceDynamicFieldsWithMappings = (promptText, layout) => {
+        if (!layout.qHyperCube?.qDataPages?.[0]?.qMatrix?.length) {
+          return promptText;
+        }
+
+        const matrix = layout.qHyperCube.qDataPages[0].qMatrix;
+        const dimensionInfo = layout.qHyperCube.qDimensionInfo || [];
+        const measureInfo = layout.qHyperCube.qMeasureInfo || [];
+        const props = layout?.props || {};
+
+        // Use saved field mappings if available
+        const savedMappings = props.fieldMappings || [];
+
+        if (savedMappings.length > 0) {
+          // Use saved mappings for precise field replacement
+          let replacedPrompt = promptText;
+
+          savedMappings.forEach((mapping) => {
+            if (mapping.mappedField && mapping.placeholder) {
+              // Find the mapped field in dimensions or measures
+              let fieldValue = "";
+
+              // Check dimensions
+              const dimIndex = dimensionInfo.findIndex(
+                (dim) => dim.qFallbackTitle === mapping.mappedField
+              );
+
+              if (dimIndex !== -1) {
+                const values = matrix
+                  .map(
+                    (row) => row[dimIndex]?.qText || row[dimIndex]?.qNum || ""
+                  )
+                  .filter((v) => v !== "");
+                const uniqueValues = [...new Set(values)];
+                fieldValue = uniqueValues.slice(0, 5).join(", ");
+              } else {
+                // Check measures
+                const measureIndex = measureInfo.findIndex(
+                  (measure) => measure.qFallbackTitle === mapping.mappedField
+                );
+
+                if (measureIndex !== -1) {
+                  const dimCount = dimensionInfo.length;
+                  const values = matrix.map((row) => {
+                    const val =
+                      row[dimCount + measureIndex]?.qNum ||
+                      row[dimCount + measureIndex]?.qText ||
+                      0;
+                    return parseFloat(val) || 0;
+                  });
+                  fieldValue = values
+                    .slice(0, 5)
+                    .map((v) => v.toString())
+                    .join(", ");
+                }
+              }
+
+              // Replace the placeholder with actual field value
+              if (fieldValue) {
+                const placeholderRegex = new RegExp(
+                  mapping.placeholder.replace(/[{}]/g, "\\$&"),
+                  "g"
+                );
+                replacedPrompt = replacedPrompt.replace(
+                  placeholderRegex,
+                  fieldValue
+                );
+              }
+            }
+          });
+
+          return replacedPrompt;
+        }
+
+        // Fallback to original field replacement logic
+        return replaceDynamicFields(promptText, layout);
+      };
+
+      // Helper function for save success
+      function handleSaveSuccess(mappedFields, totalFields) {
+        const validationDiv = document.getElementById("smartMappingValidation");
+        if (validationDiv) {
+          validationDiv.innerHTML = `✅ Configuration saved successfully! ${mappedFields}/${totalFields} fields mapped.`;
+          validationDiv.style.color = "#28a745";
+
+          // Auto-close modal
+          setTimeout(() => {
+            closeSmartFieldMappingModal();
+            // Layout will automatically re-render with new data
+          }, 1500);
+        }
+      }
+
+      // Helper function for save errors
+      function handleSaveError(error) {
+        console.error("Save error:", error);
+        const validationDiv = document.getElementById("smartMappingValidation");
+        if (validationDiv) {
+          validationDiv.innerHTML = `❌ Error saving configuration: ${error.message}`;
+          validationDiv.style.color = "#dc3545";
+        }
+        alert(
+          `❌ Failed to save configuration:\n\n${error.message}\n\nPlease check the console for more details.`
+        );
       }
 
       function handlePromptChange() {
@@ -1966,6 +2514,9 @@ export default function supernova() {
       useEffect(() => {
         if (!element) return;
 
+        // NEW: Auto-load saved configuration when component initializes
+        initializeWithSavedData();
+        cleanupOldSavedData();
         const render = async () => {
           const props = layout?.props || {};
 
@@ -2246,8 +2797,8 @@ export default function supernova() {
               let userPrompt = props.userPrompt || "";
 
               // Replace dynamic fields
-              systemPrompt = replaceDynamicFields(systemPrompt, layout);
-              userPrompt = replaceDynamicFields(userPrompt, layout);
+              systemPrompt = replaceDynamicFieldsEnhanced(systemPrompt, layout);
+              userPrompt = replaceDynamicFieldsEnhanced(userPrompt, layout);
 
               let fullPrompt = userPrompt;
               if (systemPrompt) {
