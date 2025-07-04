@@ -700,18 +700,106 @@ export default function supernova() {
 
       // ===== STEP 4: REAL-TIME FIELD DETECTION FUNCTIONS =====
 
-      // Enhanced placeholder detection function
+      // Enhanced field detection that works with and without {{}} syntax
       function detectPlaceholdersInPrompts(systemPrompt, userPrompt) {
-        const combined = `${systemPrompt} ${userPrompt}`;
-        const regex = /\{\{([^}]+)\}\}/g;
-        const matches = [...combined.matchAll(regex)];
-
-        return matches.map((match) => ({
-          placeholder: match[0],
-          fieldName: match[1].trim(),
+        const allText = (systemPrompt || "") + " " + (userPrompt || "");
+        
+        // First, detect traditional {{fieldName}} placeholders
+        const traditionalMatches = [...allText.matchAll(/\{\{([^}]+)\}\}/g)];
+        const detectedFields = traditionalMatches.map((match) => ({
+          placeholder: match[0], // Full {{fieldName}}
+          fieldName: match[1].trim(), // Just fieldName
           position: match.index,
-          source: match.index < systemPrompt.length ? "system" : "user",
+          source: systemPrompt && systemPrompt.includes(match[0]) ? "system" : "user",
+          detectionMethod: "traditional",
+          autoMappable: true
         }));
+
+        // Get available fields from layout for intelligent detection
+        const availableFields = getAvailableFields(layout);
+        const allAvailableFieldNames = [
+          ...availableFields.dimensions.map(d => d.name),
+          ...availableFields.measures.map(m => m.name)
+        ];
+
+        // Enhanced intelligent field detection without requiring {{}}
+        if (allAvailableFieldNames.length > 0) {
+          // Create patterns for field detection
+          allAvailableFieldNames.forEach(fieldName => {
+            // Create more comprehensive variations of field names to match
+            const variations = [
+              fieldName, // Exact match
+              fieldName.toLowerCase(), // Lowercase
+              fieldName.toUpperCase(), // Uppercase
+              fieldName.replace(/[_\s]/g, ''), // Remove underscores and spaces
+              fieldName.replace(/[_]/g, ' '), // Replace underscores with spaces
+              fieldName.replace(/\s/g, '_'), // Replace spaces with underscores
+              fieldName.replace(/\s/g, ''), // Remove all spaces
+              // Handle camelCase and PascalCase variations
+              fieldName.replace(/([a-z])([A-Z])/g, '$1 $2'), // Split camelCase
+              fieldName.replace(/([A-Z])([A-Z][a-z])/g, '$1 $2'), // Split PascalCase
+              // Handle common abbreviations and patterns
+              fieldName.replace(/ID$/i, 'Id'), // Handle ID endings
+              fieldName.replace(/^ID/i, 'Id'), // Handle ID beginnings
+            ];
+            
+            // Add additional variations for common patterns
+            if (fieldName.includes('ID')) {
+              variations.push(fieldName.replace(/ID/g, 'Id'));
+              variations.push(fieldName.replace(/ID/g, 'id'));
+            }
+            if (fieldName.includes('Amount')) {
+              variations.push(fieldName.replace(/Amount/g, 'Amt'));
+              variations.push(fieldName.replace(/Amount/g, 'amount'));
+            }
+            
+            // Remove duplicates and filter out very short patterns
+            const uniqueVariations = [...new Set(variations)].filter(v => v.length >= 2);
+            
+            uniqueVariations.forEach(pattern => {
+              // Create regex to find field references (case insensitive, word boundaries)
+              // Use more flexible word boundary detection
+              const escapedPattern = pattern.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+              const regex = new RegExp(`(?:^|\\s|\\b)${escapedPattern}(?=\\s|\\b|$)`, 'gi');
+              let match;
+              
+              while ((match = regex.exec(allText)) !== null) {
+                const foundText = match[0].trim(); // Remove any leading/trailing whitespace
+                
+                // Skip if this field is already detected (avoid duplicates)
+                const alreadyDetected = detectedFields.some(df => 
+                  df.fieldName.toLowerCase() === fieldName.toLowerCase()
+                );
+                
+                if (!alreadyDetected && foundText.length > 1) {
+                  // Calculate confidence based on how close the match is
+                  let confidence = 85; // Base confidence for intelligent detection
+                  if (pattern === fieldName) confidence = 100; // Exact match
+                  else if (pattern.toLowerCase() === fieldName.toLowerCase()) confidence = 95; // Case difference only
+                  else if (foundText.toLowerCase() === fieldName.toLowerCase()) confidence = 90; // Found text matches exactly
+                  
+                  detectedFields.push({
+                    placeholder: foundText, // The actual text found
+                    fieldName: fieldName, // Use proper case from available fields
+                    position: match.index,
+                    source: systemPrompt && systemPrompt.toLowerCase().includes(foundText.toLowerCase()) ? "system" : "user",
+                    detectionMethod: "intelligent",
+                    suggestedReplacement: `{{${fieldName}}}`, // Suggest {{}} format
+                    autoMappable: true, // Can be auto-mapped
+                    confidence: confidence
+                  });
+                }
+              }
+            });
+          });
+        }
+
+        // Remove duplicates based on fieldName (case insensitive) and sort by confidence
+        const uniqueFields = detectedFields.filter((field, index, self) =>
+          index === self.findIndex(f => f.fieldName.toLowerCase() === field.fieldName.toLowerCase())
+        ).sort((a, b) => (b.confidence || 0) - (a.confidence || 0)); // Sort by confidence descending
+
+        return uniqueFields;
       }
 
       // Get available fields from current layout
@@ -733,14 +821,35 @@ export default function supernova() {
         };
       }
 
-      // Smart field matching algorithm
+      // Enhanced field matching algorithm that works with intelligent detection
       function suggestFieldMappings(detectedFields, availableFields) {
         const suggestions = [];
 
         detectedFields.forEach((detected) => {
           const fieldName = detected.fieldName.toLowerCase();
 
-          // Try exact matches first
+          // For intelligent detection, we already know the field exists
+          if (detected.detectionMethod === "intelligent") {
+            // Find the exact field match
+            const exactMatch = [...availableFields.dimensions, ...availableFields.measures]
+              .find(field => field.name.toLowerCase() === fieldName);
+
+            suggestions.push({
+              placeholder: detected.placeholder,
+              fieldName: detected.fieldName,
+              source: detected.source,
+              suggestedField: exactMatch,
+              confidence: detected.confidence || 100, // Use pre-calculated confidence
+              mappedField: exactMatch ? exactMatch.name : null, // Auto-map intelligent detections
+              detectionMethod: detected.detectionMethod,
+              suggestedReplacement: detected.suggestedReplacement,
+              autoMappable: detected.autoMappable,
+              keepAsText: false // Option to keep as normal text
+            });
+            return;
+          }
+
+          // Traditional matching for {{}} placeholders
           let bestMatch = null;
           let matchScore = 0;
 
@@ -781,6 +890,9 @@ export default function supernova() {
             suggestedField: bestMatch,
             confidence: matchScore,
             mappedField: null, // Will be set by user or auto-mapping
+            detectionMethod: detected.detectionMethod || "traditional",
+            autoMappable: true,
+            keepAsText: false
           });
         });
 
@@ -908,14 +1020,21 @@ export default function supernova() {
                       margin-left: 6px;
                     ">${suggestion.source}</span>
                     ${
+                      suggestion.detectionMethod === "intelligent"
+                        ? '<span style="background: #e8f5e8; color: #2e7d32; padding: 2px 6px; border-radius: 10px; font-size: 9px; margin-left: 4px;">🧠 smart</span>'
+                        : '<span style="background: #f0f0f0; color: #6c757d; padding: 2px 6px; border-radius: 10px; font-size: 9px; margin-left: 4px;">{{}} syntax</span>'
+                    }
+                    ${
                       isManuallyMapped
-                        ? '<span style="background: #e8f5e8; color: #2e7d32; padding: 2px 6px; border-radius: 10px; font-size: 9px; margin-left: 4px;">manual</span>'
+                        ? '<span style="background: #fff3e0; color: #e65100; padding: 2px 6px; border-radius: 10px; font-size: 9px; margin-left: 4px;">manual</span>'
                         : ""
                     }
                   </div>
                   <div style="font-size: 10px; color: #6c757d;">
                     ${
-                      suggestion.suggestedField
+                      suggestion.detectionMethod === "intelligent"
+                        ? `Smart detection: Found "${suggestion.fieldName}" field → ${suggestion.suggestedReplacement || suggestion.placeholder}`
+                        : suggestion.suggestedField
                         ? `Auto-suggested: ${suggestion.suggestedField.name} (${suggestion.suggestedField.type})`
                         : "No auto-mapping suggestion"
                     }
@@ -936,8 +1055,57 @@ export default function supernova() {
               
               <!-- Interactive Mapping Section -->
               <div style="border-top: 1px solid #f0f0f0; padding-top: 8px;">
+                ${
+                  suggestion.detectionMethod === "intelligent"
+                    ? `
+                  <!-- Smart Detection Options -->
+                  <div style="margin-bottom: 8px;">
+                    <div style="font-size: 10px; color: #6c757d; font-weight: 600; margin-bottom: 4px;">Action:</div>
+                    <div style="display: flex; gap: 6px;">
+                      <button 
+                        onclick="acceptFieldMapping(${index})"
+                        style="
+                          flex: 1;
+                          background: ${suggestion.mappedField ? '#28a745' : '#007bff'};
+                          color: white;
+                          border: none;
+                          padding: 6px 8px;
+                          border-radius: 4px;
+                          font-size: 10px;
+                          cursor: pointer;
+                          font-weight: 500;
+                        "
+                        title="Map to ${suggestion.fieldName} field"
+                      >
+                        ${suggestion.mappedField ? '✓ Mapped to Field' : '🔗 Map to Field'}
+                      </button>
+                      <button 
+                        onclick="keepAsText(${index})"
+                        style="
+                          flex: 1;
+                          background: ${suggestion.keepAsText ? '#6c757d' : '#f8f9fa'};
+                          color: ${suggestion.keepAsText ? 'white' : '#6c757d'};
+                          border: 1px solid #dee2e6;
+                          padding: 6px 8px;
+                          border-radius: 4px;
+                          font-size: 10px;
+                          cursor: pointer;
+                          font-weight: 500;
+                        "
+                        title="Keep as normal text"
+                      >
+                        ${suggestion.keepAsText ? '✓ Keep as Text' : '📝 Keep as Text'}
+                      </button>
+                    </div>
+                  </div>
+                  `
+                    : ""
+                }
+                
                 <div style="display: flex; align-items: center; gap: 8px;">
-                  <span style="font-size: 10px; color: #6c757d; font-weight: 600; flex-shrink: 0;">Map to:</span>
+                  <span style="font-size: 10px; color: #6c757d; font-weight: 600; flex-shrink: 0;">
+                    ${suggestion.detectionMethod === "intelligent" ? "Override:" : "Map to:"}
+                  </span>
                   <select 
                     id="fieldMapping_${index}" 
                     class="smart-mapping-field-selector"
@@ -950,6 +1118,7 @@ export default function supernova() {
                       font-size: 11px;
                       background: white;
                       cursor: pointer;
+                      ${suggestion.detectionMethod === "intelligent" ? 'opacity: 0.7;' : ''}
                     "
                   >
                     <option value="">-- Select Field --</option>
@@ -1058,6 +1227,38 @@ export default function supernova() {
       window.clearFieldMapping = function (index) {
         if (index >= 0 && index < currentFieldSuggestions.length) {
           currentFieldSuggestions[index].mappedField = null;
+          currentFieldSuggestions[index].keepAsText = false;
+
+          // Refresh the display
+          updateDetectedFieldsList(currentFieldSuggestions);
+          updateFieldStats(currentFieldSuggestions, currentFieldSuggestions);
+          updateSmartSuggestions(currentFieldSuggestions);
+          updateMappingValidation();
+        }
+      };
+
+      // Accept intelligent field mapping
+      window.acceptFieldMapping = function (index) {
+        if (index >= 0 && index < currentFieldSuggestions.length) {
+          const suggestion = currentFieldSuggestions[index];
+          if (suggestion.suggestedField) {
+            suggestion.mappedField = suggestion.suggestedField.name;
+            suggestion.keepAsText = false;
+
+            // Refresh the display
+            updateDetectedFieldsList(currentFieldSuggestions);
+            updateFieldStats(currentFieldSuggestions, currentFieldSuggestions);
+            updateSmartSuggestions(currentFieldSuggestions);
+            updateMappingValidation();
+          }
+        }
+      };
+
+      // Keep field as normal text (don't map)
+      window.keepAsText = function (index) {
+        if (index >= 0 && index < currentFieldSuggestions.length) {
+          currentFieldSuggestions[index].keepAsText = true;
+          currentFieldSuggestions[index].mappedField = null;
 
           // Refresh the display
           updateDetectedFieldsList(currentFieldSuggestions);
@@ -1076,21 +1277,25 @@ export default function supernova() {
         const mappedFields = currentFieldSuggestions.filter(
           (s) => s.mappedField
         ).length;
+        const keptAsText = currentFieldSuggestions.filter(
+          (s) => s.keepAsText
+        ).length;
+        const resolvedFields = mappedFields + keptAsText;
 
         if (totalFields === 0) {
           validationDiv.innerHTML =
-            "Add {{field}} placeholders to your prompts";
+            "Add field references to your prompts (use field names naturally or {{field}} syntax) for smart mapping";
           validationDiv.style.color = "#6c757d";
-        } else if (mappedFields === 0) {
-          validationDiv.innerHTML = `⚠️ ${totalFields} fields need mapping`;
+        } else if (resolvedFields === 0) {
+          validationDiv.innerHTML = `⚠️ ${totalFields} fields need action (map or keep as text)`;
           validationDiv.style.color = "#ffc107";
-        } else if (mappedFields < totalFields) {
-          validationDiv.innerHTML = `⚠️ ${mappedFields}/${totalFields} fields mapped - ${
-            totalFields - mappedFields
-          } remaining`;
+        } else if (resolvedFields < totalFields) {
+          validationDiv.innerHTML = `⚠️ ${resolvedFields}/${totalFields} fields resolved - ${
+            totalFields - resolvedFields
+          } remaining (${mappedFields} mapped, ${keptAsText} as text)`;
           validationDiv.style.color = "#ffc107";
         } else {
-          validationDiv.innerHTML = `✅ All ${totalFields} fields mapped and ready to save`;
+          validationDiv.innerHTML = `✅ All ${totalFields} fields resolved and ready to save (${mappedFields} mapped, ${keptAsText} as text)`;
           validationDiv.style.color = "#28a745";
         }
       }
@@ -1283,7 +1488,6 @@ export default function supernova() {
               <!-- Modal Header -->
               <div class="smart-mapping-modal-header">
                 <div class="smart-mapping-modal-title">
-                  <span>🧠🔀</span>
                   Smart Field Mapping
                 </div>
                 <button class="smart-mapping-close-btn" onclick="closeSmartFieldMappingModal()">×</button>
@@ -1295,23 +1499,21 @@ export default function supernova() {
                 <div class="smart-mapping-prompts-panel">
                   <div class="smart-mapping-prompt-section">
                     <div class="smart-mapping-prompt-header">
-                      <span>🤖</span>
                       System Prompt
                     </div>
                     <div class="smart-mapping-prompt-container">
                       <textarea id="smartMappingSystemPrompt" class="smart-mapping-textarea" 
-                                placeholder="Enter your system prompt with {{field}} placeholders..."></textarea>
+                                placeholder="Enter your system prompt. Reference field names naturally or use {{field}} placeholders..."></textarea>
                     </div>
                   </div>
                   
                   <div class="smart-mapping-prompt-section">
                     <div class="smart-mapping-prompt-header">
-                      <span>👤</span>
                       User Prompt
                     </div>
                     <div class="smart-mapping-prompt-container">
                       <textarea id="smartMappingUserPrompt" class="smart-mapping-textarea" 
-                                placeholder="Enter your user prompt with {{field}} placeholders..."></textarea>
+                                placeholder="Enter your user prompt. Reference field names naturally or use {{field}} placeholders..."></textarea>
                     </div>
                   </div>
                 </div>
@@ -1321,10 +1523,8 @@ export default function supernova() {
                   <!-- Detected Fields -->
                   <div class="smart-mapping-section">
                     <div class="smart-mapping-section-header">
-                      <span>🔍</span>
                       Detected Fields
                       <button id="smartMappingAutoMapBtn" class="smart-mapping-auto-map-btn">
-                        <span>✨</span>
                         Auto-Map Fields
                       </button>
                     </div>
@@ -1338,7 +1538,7 @@ export default function supernova() {
                       </div>
                       <div class="smart-mapping-stat">
                         <div class="smart-mapping-stat-number">0</div>
-                        <div class="smart-mapping-stat-label">Auto-Mapped</div>
+                        <div class="smart-mapping-stat-label">Mapped</div>
                       </div>
                       <div class="smart-mapping-stat">
                         <div class="smart-mapping-stat-number">0</div>
@@ -1350,13 +1550,14 @@ export default function supernova() {
                   <!-- Available Fields -->
                   <div class="smart-mapping-section">
                     <div class="smart-mapping-section-header">
-                      <span>📊</span>
                       Available Data Fields
+                      <button id="smartMappingRefreshBtn" class="smart-mapping-auto-map-btn" style="background: #17a2b8;">
+                        Refresh
+                      </button>
                     </div>
                     <div class="smart-mapping-available-fields">
                       <div class="smart-mapping-field-group">
                         <div class="smart-mapping-field-group-header">
-                          <span>🔷</span>
                           Dimensions
                         </div>
                         <div id="smartMappingDimensions" class="smart-mapping-field-tags">
@@ -1365,7 +1566,6 @@ export default function supernova() {
                       </div>
                       <div class="smart-mapping-field-group">
                         <div class="smart-mapping-field-group-header">
-                          <span>📈</span>
                           Measures
                         </div>
                         <div id="smartMappingMeasures" class="smart-mapping-field-tags">
@@ -1378,7 +1578,6 @@ export default function supernova() {
                   <!-- Smart Suggestions -->
                   <div class="smart-mapping-section">
                     <div class="smart-mapping-section-header">
-                      <span>💡</span>
                       Smart Suggestions
                     </div>
                     <div id="smartMappingSuggestions" class="smart-mapping-suggestions">
@@ -1398,7 +1597,6 @@ export default function supernova() {
                     Cancel
                   </button>
                   <button id="smartMappingSaveBtn" class="smart-mapping-btn smart-mapping-btn-primary">
-                    <span>💾</span>
                     Save
                   </button>
                 </div>
@@ -1451,8 +1649,9 @@ export default function supernova() {
         width: 95vw;
         max-width: 1400px;
         height: 90vh;
+        max-height: 800px;
         background: white;
-        border-radius: 20px;
+        border-radius: 16px;
         box-shadow: 0 20px 60px rgba(0,0,0,0.3);
         display: flex;
         flex-direction: column;
@@ -1460,182 +1659,214 @@ export default function supernova() {
       }
       
       .smart-mapping-modal-header {
-        background: linear-gradient(135deg, #4a90e2 0%, #357abd 100%);
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
         color: white;
-        padding: 20px 30px;
+        padding: 20px 24px;
         display: flex;
         align-items: center;
         justify-content: space-between;
+        border-bottom: 1px solid rgba(255,255,255,0.1);
       }
       
       .smart-mapping-modal-title {
-        font-size: 20px;
+        font-size: 18px;
         font-weight: 600;
         display: flex;
         align-items: center;
-        gap: 10px;
+        gap: 8px;
       }
       
       .smart-mapping-close-btn {
-        background: rgba(255,255,255,0.2);
+        background: rgba(255,255,255,0.15);
         border: none;
         color: white;
-        width: 40px;
-        height: 40px;
+        width: 36px;
+        height: 36px;
         border-radius: 50%;
         cursor: pointer;
-        font-size: 24px;
+        font-size: 20px;
         display: flex;
         align-items: center;
         justify-content: center;
+        transition: all 0.2s ease;
       }
       
       .smart-mapping-close-btn:hover {
-        background: rgba(255,255,255,0.3);
+        background: rgba(255,255,255,0.25);
+        transform: scale(1.05);
       }
       
       .smart-mapping-modal-content {
         flex: 1;
         display: grid;
-        grid-template-columns: 1fr 500px;
+        grid-template-columns: 1fr 420px;
         overflow: hidden;
+        min-height: 0;
       }
       
       .smart-mapping-prompts-panel {
-        padding: 30px;
+        padding: 24px;
         display: flex;
         flex-direction: column;
         gap: 20px;
-        border-right: 1px solid #e0e0e0;
+        border-right: 1px solid #e9ecef;
         overflow-y: auto;
+        background: #fafbfc;
       }
       
       .smart-mapping-prompt-section {
         flex: 1;
         display: flex;
         flex-direction: column;
+        min-height: 0;
       }
       
       .smart-mapping-prompt-header {
-        font-size: 16px;
+        font-size: 14px;
         font-weight: 600;
         color: #495057;
-        margin-bottom: 12px;
+        margin-bottom: 8px;
         display: flex;
         align-items: center;
-        gap: 8px;
+        gap: 6px;
       }
       
       .smart-mapping-prompt-container {
         flex: 1;
-        border: 2px solid #e0e0e0;
-        border-radius: 12px;
+        border: 2px solid #e9ecef;
+        border-radius: 8px;
         overflow: hidden;
+        background: white;
+        min-height: 0;
       }
       
       .smart-mapping-prompt-container:focus-within {
-        border-color: #4a90e2;
+        border-color: #667eea;
+        box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
       }
       
       .smart-mapping-textarea {
         width: 100%;
         height: 100%;
-        min-height: 200px;
-        padding: 20px;
+        min-height: 180px;
+        padding: 16px;
         border: none;
-        font-family: 'SF Mono', 'Monaco', monospace;
-        font-size: 14px;
-        line-height: 1.6;
+        font-family: 'SF Mono', 'Monaco', 'Consolas', monospace;
+        font-size: 13px;
+        line-height: 1.5;
         resize: none;
-        background: #fafafa;
+        background: white;
         box-sizing: border-box;
+        color: #495057;
       }
       
       .smart-mapping-textarea:focus {
         outline: none;
-        background: white;
       }
       
+      .smart-mapping-textarea::placeholder {
+        color: #adb5bd;
+      }
+      
+
+
       .smart-mapping-fields-panel {
-        background: #f8f9fa;
-        padding: 30px;
+        background: white;
+        padding: 24px;
         overflow-y: auto;
         display: flex;
         flex-direction: column;
-        gap: 24px;
+        gap: 20px;
       }
       
       .smart-mapping-section {
         background: white;
-        border-radius: 12px;
+        border: 1px solid #e9ecef;
+        border-radius: 8px;
         overflow: hidden;
-        box-shadow: 0 2px 8px rgba(0,0,0,0.05);
       }
       
       .smart-mapping-section-header {
         background: #f8f9fa;
-        padding: 16px 20px;
-        border-bottom: 1px solid #e0e0e0;
-        font-size: 16px;
+        padding: 12px 16px;
+        border-bottom: 1px solid #e9ecef;
+        font-size: 14px;
         font-weight: 600;
         color: #495057;
         display: flex;
         align-items: center;
         justify-content: space-between;
-        gap: 10px;
+        gap: 8px;
       }
       
       .smart-mapping-auto-map-btn {
         background: #28a745;
         color: white;
         border: none;
-        padding: 6px 12px;
-        border-radius: 16px;
-        font-size: 11px;
+        padding: 4px 8px;
+        border-radius: 4px;
+        font-size: 10px;
         font-weight: 600;
         cursor: pointer;
-        display: flex;
-        align-items: center;
-        gap: 4px;
+        transition: all 0.2s ease;
       }
       
       .smart-mapping-auto-map-btn:hover {
         background: #218838;
+        transform: translateY(-1px);
+      }
+      
+      .smart-mapping-add-field-btn {
+        background: #007bff;
+        color: white;
+        border: none;
+        padding: 2px 6px;
+        border-radius: 3px;
+        font-size: 9px;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.2s ease;
+        margin-left: auto;
+      }
+      
+      .smart-mapping-add-field-btn:hover {
+        background: #0056b3;
+        transform: translateY(-1px);
       }
       
       .smart-mapping-fields-list {
-        padding: 20px;
+        padding: 16px;
         min-height: 60px;
-        max-height: 300px;
+        max-height: 240px;
         overflow-y: auto;
         scrollbar-width: thin;
-        scrollbar-color: #9ca3af #f1f3f4;
+        scrollbar-color: #ced4da #f8f9fa;
       }
       
       .smart-mapping-fields-list::-webkit-scrollbar {
-        width: 8px;
+        width: 6px;
       }
       
       .smart-mapping-fields-list::-webkit-scrollbar-track {
-        background: #f1f3f4;
-        border-radius: 4px;
+        background: #f8f9fa;
+        border-radius: 3px;
       }
       
       .smart-mapping-fields-list::-webkit-scrollbar-thumb {
-        background: #9ca3af;
-        border-radius: 4px;
+        background: #ced4da;
+        border-radius: 3px;
       }
       
       .smart-mapping-fields-list::-webkit-scrollbar-thumb:hover {
-        background: #6b7280;
+        background: #adb5bd;
       }
       
       .smart-mapping-stats {
-        padding: 16px 20px;
+        padding: 12px 16px;
         display: flex;
         justify-content: space-around;
         background: #f8f9fa;
-        border-top: 1px solid #e0e0e0;
+        border-top: 1px solid #e9ecef;
       }
       
       .smart-mapping-stat {
@@ -1643,83 +1874,124 @@ export default function supernova() {
       }
       
       .smart-mapping-stat-number {
-        font-size: 20px;
-        font-weight: bold;
-        color: #4a90e2;
+        font-size: 18px;
+        font-weight: 700;
+        color: #667eea;
+        line-height: 1.2;
       }
       
       .smart-mapping-stat-label {
-        font-size: 10px;
+        font-size: 9px;
         color: #6c757d;
         text-transform: uppercase;
+        letter-spacing: 0.5px;
+        margin-top: 2px;
       }
       
       .smart-mapping-available-fields {
-        padding: 20px;
-        max-height: 200px;
+        padding: 16px;
+        max-height: 240px;
         overflow-y: auto;
         scrollbar-width: thin;
-        scrollbar-color: #9ca3af #f1f3f4;
+        scrollbar-color: #ced4da #f8f9fa;
       }
       
       .smart-mapping-available-fields::-webkit-scrollbar {
-        width: 8px;
+        width: 6px;
       }
       
       .smart-mapping-available-fields::-webkit-scrollbar-track {
-        background: #f1f3f4;
-        border-radius: 4px;
+        background: #f8f9fa;
+        border-radius: 3px;
       }
       
       .smart-mapping-available-fields::-webkit-scrollbar-thumb {
-        background: #9ca3af;
-        border-radius: 4px;
+        background: #ced4da;
+        border-radius: 3px;
       }
       
       .smart-mapping-available-fields::-webkit-scrollbar-thumb:hover {
-        background: #6b7280;
+        background: #adb5bd;
       }
       
       .smart-mapping-field-group {
         margin-bottom: 16px;
       }
       
+      .smart-mapping-field-group:last-child {
+        margin-bottom: 0;
+      }
+      
       .smart-mapping-field-group-header {
-        font-size: 12px;
+        font-size: 11px;
         font-weight: 600;
         color: #6c757d;
-        margin-bottom: 8px;
+        margin-bottom: 6px;
         display: flex;
         align-items: center;
-        gap: 6px;
+        justify-content: space-between;
+        gap: 4px;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
       }
       
       .smart-mapping-field-tags {
         display: flex;
         flex-wrap: wrap;
-        gap: 6px;
+        gap: 4px;
+        max-height: 120px;
+        overflow-y: auto;
+        overflow-x: hidden;
+        scrollbar-width: thin;
+        scrollbar-color: #ced4da #f8f9fa;
+        width: 100%;
+        box-sizing: border-box;
+      }
+      
+      .smart-mapping-field-tags::-webkit-scrollbar {
+        width: 6px;
+      }
+      
+      .smart-mapping-field-tags::-webkit-scrollbar-track {
+        background: #f8f9fa;
+        border-radius: 3px;
+      }
+      
+      .smart-mapping-field-tags::-webkit-scrollbar-thumb {
+        background: #ced4da;
+        border-radius: 3px;
+      }
+      
+      .smart-mapping-field-tags::-webkit-scrollbar-thumb:hover {
+        background: #adb5bd;
       }
       
       .smart-mapping-field-tag {
         padding: 4px 8px;
-        border-radius: 12px;
-        font-size: 10px;
+        border-radius: 4px;
+        font-size: 11px;
         font-weight: 500;
         cursor: pointer;
         transition: all 0.2s ease;
         border: 1px solid transparent;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        max-width: 100%;
+        box-sizing: border-box;
+        flex-shrink: 0;
       }
       
       .smart-mapping-field-tag.dimension {
         background: #e3f2fd;
         color: #1565c0;
-        border-color: #90caf9;
+        border-color: #bbdefb;
       }
       
       .smart-mapping-field-tag.measure {
         background: #fff3e0;
         color: #ef6c00;
-        border-color: #ffb74d;
+        border-color: #ffcc80;
       }
       
       .smart-mapping-field-tag:hover {
@@ -1742,38 +2014,38 @@ export default function supernova() {
       
       .smart-mapping-field-selector:focus {
         outline: none;
-        border-color: #4a90e2 !important;
-        box-shadow: 0 0 0 2px rgba(74, 144, 226, 0.2);
+        border-color: #667eea !important;
+        box-shadow: 0 0 0 2px rgba(102, 126, 234, 0.2);
       }
       
       .smart-mapping-field-selector:hover {
-        border-color: #4a90e2;
+        border-color: #667eea;
       }
       
       .smart-mapping-suggestions {
-        padding: 20px;
+        padding: 16px;
         background: #fff9c4;
         font-size: 11px;
         color: #856404;
         line-height: 1.4;
-        max-height: 150px;
+        max-height: 120px;
         overflow-y: auto;
         scrollbar-width: thin;
         scrollbar-color: #d4af37 #fff9c4;
       }
       
       .smart-mapping-suggestions::-webkit-scrollbar {
-        width: 8px;
+        width: 6px;
       }
       
       .smart-mapping-suggestions::-webkit-scrollbar-track {
         background: #fff9c4;
-        border-radius: 4px;
+        border-radius: 3px;
       }
       
       .smart-mapping-suggestions::-webkit-scrollbar-thumb {
         background: #d4af37;
-        border-radius: 4px;
+        border-radius: 3px;
       }
       
       .smart-mapping-suggestions::-webkit-scrollbar-thumb:hover {
@@ -1781,9 +2053,9 @@ export default function supernova() {
       }
       
       .smart-mapping-modal-footer {
-        padding: 20px 30px;
+        padding: 16px 24px;
         background: #f8f9fa;
-        border-top: 1px solid #e0e0e0;
+        border-top: 1px solid #e9ecef;
         display: flex;
         justify-content: space-between;
         align-items: center;
@@ -1796,49 +2068,80 @@ export default function supernova() {
       
       .smart-mapping-actions {
         display: flex;
-        gap: 12px;
+        gap: 8px;
       }
       
       .smart-mapping-btn {
-        padding: 10px 20px;
+        padding: 8px 16px;
         border: none;
-        border-radius: 8px;
+        border-radius: 6px;
         font-weight: 600;
         cursor: pointer;
-        font-size: 14px;
-        display: flex;
-        align-items: center;
-        gap: 6px;
+        font-size: 13px;
+        transition: all 0.2s ease;
       }
       
       .smart-mapping-btn-primary {
-        background: linear-gradient(135deg, #4a90e2 0%, #357abd 100%);
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
         color: white;
       }
       
       .smart-mapping-btn-primary:hover {
         transform: translateY(-1px);
-        box-shadow: 0 4px 12px rgba(74, 144, 226, 0.3);
+        box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
       }
       
       .smart-mapping-btn-secondary {
         background: #f8f9fa;
         color: #6c757d;
-        border: 1px solid #e0e0e0;
+        border: 1px solid #e9ecef;
       }
       
       .smart-mapping-btn-secondary:hover {
         background: #e9ecef;
       }
       
-      @media (max-width: 1200px) {
+      @media (max-width: 1400px) {
+        .smart-mapping-modal-container {
+          width: 98vw;
+          height: 95vh;
+        }
+        
+        .smart-mapping-modal-content {
+          grid-template-columns: 1fr;
+          grid-template-rows: 1fr auto auto;
+        }
+        
+        .smart-mapping-data-panel {
+          border-top: 1px solid #e9ecef;
+          border-left: none;
+          border-right: none;
+          max-height: 30vh;
+        }
+        
+        .smart-mapping-fields-panel {
+          border-top: 1px solid #e9ecef;
+          max-height: 40vh;
+        }
+        
+        .smart-mapping-prompts-panel {
+          border-right: none;
+        }
+      }
+      
+      @media (max-width: 768px) {
+        .smart-mapping-modal-container {
+          width: 100vw;
+          height: 100vh;
+          border-radius: 0;
+        }
+        
         .smart-mapping-modal-content {
           grid-template-columns: 1fr;
         }
         
         .smart-mapping-fields-panel {
-          border-top: 1px solid #e0e0e0;
-          border-right: none;
+          max-height: 50vh;
         }
       }
     </style>
@@ -1857,6 +2160,13 @@ export default function supernova() {
         document
           .getElementById("smartMappingSaveBtn")
           ?.addEventListener("click", handleSave);
+
+        // Refresh button
+        document
+          .getElementById("smartMappingRefreshBtn")
+          ?.addEventListener("click", handleRefreshFields);
+
+
 
         // Prompt text changes
         document
@@ -2059,6 +2369,8 @@ export default function supernova() {
             source: s.source,
             confidence: s.confidence,
             suggestedField: s.suggestedField?.name || null,
+            keepAsText: s.keepAsText || false,
+            detectionMethod: s.detectionMethod || "traditional"
           }));
 
           // Save to localStorage for session persistence
@@ -2508,6 +2820,88 @@ export default function supernova() {
         // Real-time field detection as user types
         detectAndDisplayFields();
       }
+
+      async function handleRefreshFields() {
+        try {
+          // Show loading state immediately
+          const refreshBtn = document.getElementById("smartMappingRefreshBtn");
+          if (refreshBtn) {
+            refreshBtn.textContent = "Refreshing...";
+            refreshBtn.style.background = "#ffc107";
+            refreshBtn.disabled = true;
+          }
+          
+          // Get the fresh layout from the current object with timeout
+          const currentObject = await app.getObject(layout.qInfo.qId);
+          const freshLayout = await Promise.race([
+            currentObject.getLayout(),
+            new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), 5000))
+          ]);
+          
+          // Force refresh the available fields from the updated layout
+          const availableFields = getAvailableFields(freshLayout);
+          updateAvailableFieldsDisplay(availableFields);
+          
+          // Only re-detect fields if there are prompts (optimization)
+          const systemPrompt =
+            document.getElementById("smartMappingSystemPrompt")?.value || "";
+          const userPrompt =
+            document.getElementById("smartMappingUserPrompt")?.value || "";
+
+          if (systemPrompt.trim() || userPrompt.trim()) {
+            // Update field detection with fresh layout
+            currentFieldSuggestions = detectPlaceholdersInPrompts(systemPrompt, userPrompt);
+            const suggestions = suggestFieldMappings(currentFieldSuggestions, availableFields);
+            
+            // Update all displays
+            updateDetectedFieldsList(suggestions);
+            updateFieldStats(currentFieldSuggestions, suggestions);
+            updateSmartSuggestions(suggestions);
+            updateMappingValidation();
+          }
+          
+          // Show success feedback
+          if (refreshBtn) {
+            refreshBtn.textContent = "Refreshed!";
+            refreshBtn.style.background = "#28a745";
+            refreshBtn.disabled = false;
+            
+            setTimeout(() => {
+              refreshBtn.textContent = "Refresh";
+              refreshBtn.style.background = "#17a2b8";
+            }, 1000);
+          }
+          
+          console.log("✅ Fields refreshed with latest layout");
+        } catch (error) {
+          console.error("Error refreshing fields:", error);
+          
+          // Fallback to old method (faster)
+          const availableFields = getAvailableFields(layout);
+          updateAvailableFieldsDisplay(availableFields);
+          
+          // Show error feedback
+          const refreshBtn = document.getElementById("smartMappingRefreshBtn");
+          if (refreshBtn) {
+            refreshBtn.textContent = "Try Again";
+            refreshBtn.style.background = "#dc3545";
+            refreshBtn.disabled = false;
+            
+            setTimeout(() => {
+              refreshBtn.textContent = "Refresh";
+              refreshBtn.style.background = "#17a2b8";
+            }, 2000);
+          }
+        }
+      }
+
+
+
+
+
+
+
+
       // ===== END MODAL FUNCTIONS =====
 
       // Main effect hook - Re-run when layout changes (selections, filters, etc.)
@@ -2629,41 +3023,87 @@ export default function supernova() {
             !props.systemPrompt ||
             !props.userPrompt
           ) {
-            // Configuration needed
-            const missingItems = [];
-            if (!props.connectionName)
-              missingItems.push("Claude Connection Name");
-            if (!props.systemPrompt || !props.userPrompt)
-              missingItems.push("System & User Prompts");
+            // Enhanced Configuration needed with step-by-step guidance
+            const hasConnection = !!props.connectionName;
+            const hasValidation = !!props.enableCustomValidation;
+            const hasData = !!(layout.qHyperCube?.qDimensionInfo?.length || layout.qHyperCube?.qMeasureInfo?.length);
+            const hasPrompts = !!(props.systemPrompt && props.userPrompt);
 
             content += `
-              <div style="flex: 1; display: flex; align-items: center; justify-content: center; background: #f8f9fa; border: 2px dashed #dee2e6; border-radius: 12px; text-align: center; color: #6c757d; padding: 20px; min-height: 150px;">
-                <div style="max-width: 400px;">
-                  <div style="font-size: 48px; margin-bottom: 12px; opacity: 0.3;">⚙️</div>
-                  <h3 style="margin: 0 0 6px 0; color: #495057; font-size: 16px;">Configuration Required</h3>
-                  <p style="margin: 0 0 8px 0; font-size: 13px;">Please configure the following:</p>
-                  <p style="margin: 0 0 12px 0; font-size: 13px; font-weight: 500; color: #dc3545;">${missingItems.join(
-                    ", "
-                  )}</p>
+              <div style="flex: 1; display: flex; flex-direction: column; gap: 16px; background: #f8f9fa; border: 2px dashed #dee2e6; border-radius: 12px; padding: 24px; min-height: 200px;">
+                <!-- Header -->
+                <div style="text-align: center; margin-bottom: 8px;">
+                  <div style="font-size: 48px; margin-bottom: 12px; opacity: 0.4;">🚀</div>
+                  <h3 style="margin: 0 0 6px 0; color: #495057; font-size: 18px; font-weight: 600;">Welcome to Dynamic LLM Extension</h3>
+                  <p style="margin: 0; font-size: 14px; color: #6c757d;">Follow these steps to get started with AI-powered data analysis</p>
+                </div>
+
+                <!-- Step-by-step setup -->
+                <div style="max-width: 500px; margin: 0 auto; width: 100%;">
                   
-                  <div style="background: #e3f2fd; border: 1px solid #90caf9; border-radius: 8px; padding: 10px 12px; margin-top: 12px; font-size: 11px; color: #1565c0; text-align: left; line-height: 1.3;">
-                    <div style="font-weight: 600; margin-bottom: 4px;">💡 Quick Setup:</div>
-                    <div>
-                      ${
-                        !props.connectionName
-                          ? "• Set your Claude SSE connection name in LLM Configuration<br>"
-                          : ""
-                      }
-                      ${
-                        !props.systemPrompt || !props.userPrompt
-                          ? '• Click "Configure Prompts & Field Mapping" to set up prompts<br>'
-                          : ""
-                      }
-                      • Use {{fieldName}} placeholders in prompts for dynamic data<br>
-                      • Enable custom validation with GetPossibleCount() expressions
+                  <!-- Step 1: Connection -->
+                  <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 16px; padding: 12px; background: ${hasConnection ? '#e8f5e8' : '#fff3e0'}; border: 1px solid ${hasConnection ? '#c3e6c3' : '#ffcc80'}; border-radius: 8px;">
+                    <div style="flex-shrink: 0; width: 24px; height: 24px; border-radius: 50%; background: ${hasConnection ? '#28a745' : '#ff9800'}; color: white; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: bold;">
+                      ${hasConnection ? '✓' : '1'}
+                    </div>
+                    <div style="flex: 1;">
+                      <div style="font-weight: 600; font-size: 13px; color: ${hasConnection ? '#155724' : '#e65100'};">
+                        ${hasConnection ? 'Connection Configured ✓' : 'Configure Claude Connection'}
+                      </div>
+                      <div style="font-size: 11px; color: ${hasConnection ? '#155724' : '#e65100'}; opacity: 0.8;">
+                        ${hasConnection ? 'Ready to connect to Claude AI' : 'Set connection name in LLM Configuration panel'}
+                      </div>
                     </div>
                   </div>
+
+                  <!-- Step 2: Validation -->
+                  <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 16px; padding: 12px; background: ${hasValidation ? '#e8f5e8' : '#fff3e0'}; border: 1px solid ${hasValidation ? '#c3e6c3' : '#ffcc80'}; border-radius: 8px;">
+                    <div style="flex-shrink: 0; width: 24px; height: 24px; border-radius: 50%; background: ${hasValidation ? '#28a745' : '#ff9800'}; color: white; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: bold;">
+                      ${hasValidation ? '✓' : '2'}
+                    </div>
+                    <div style="flex: 1;">
+                      <div style="font-weight: 600; font-size: 13px; color: ${hasValidation ? '#155724' : '#e65100'};">
+                        ${hasValidation ? 'Validation Configured ✓' : 'Setup Selection Validation'}
+                      </div>
+                      <div style="font-size: 11px; color: ${hasValidation ? '#155724' : '#e65100'}; opacity: 0.8;">
+                        ${hasValidation ? 'Custom validation rules are active' : 'Enable validation in Selection Validation panel'}
+                      </div>
+                    </div>
+                  </div>
+
+                  <!-- Step 3: Data -->
+                  <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 16px; padding: 12px; background: ${hasData ? '#e8f5e8' : '#fff3e0'}; border: 1px solid ${hasData ? '#c3e6c3' : '#ffcc80'}; border-radius: 8px;">
+                    <div style="flex-shrink: 0; width: 24px; height: 24px; border-radius: 50%; background: ${hasData ? '#28a745' : '#ff9800'}; color: white; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: bold;">
+                      ${hasData ? '✓' : '3'}
+                    </div>
+                    <div style="flex: 1;">
+                      <div style="font-weight: 600; font-size: 13px; color: ${hasData ? '#155724' : '#e65100'};">
+                        ${hasData ? 'Data Fields Added ✓' : 'Add Dimensions & Measures'}
+                      </div>
+                      <div style="font-size: 11px; color: ${hasData ? '#155724' : '#e65100'}; opacity: 0.8;">
+                        ${hasData ? `${layout.qHyperCube?.qDimensionInfo?.length || 0} dimensions, ${layout.qHyperCube?.qMeasureInfo?.length || 0} measures` : 'Add data fields in the Data panel'}
+                      </div>
+                    </div>
+                  </div>
+
+                  <!-- Step 4: Prompts -->
+                  <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 16px; padding: 12px; background: ${hasPrompts ? '#e8f5e8' : '#fff3e0'}; border: 1px solid ${hasPrompts ? '#c3e6c3' : '#ffcc80'}; border-radius: 8px;">
+                    <div style="flex-shrink: 0; width: 24px; height: 24px; border-radius: 50%; background: ${hasPrompts ? '#28a745' : '#ff9800'}; color: white; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: bold;">
+                      ${hasPrompts ? '✓' : '4'}
+                    </div>
+                    <div style="flex: 1;">
+                      <div style="font-weight: 600; font-size: 13px; color: ${hasPrompts ? '#155724' : '#e65100'};">
+                        ${hasPrompts ? 'Prompts Configured ✓' : 'Add AI Prompts'}
+                      </div>
+                      <div style="font-size: 11px; color: ${hasPrompts ? '#155724' : '#e65100'}; opacity: 0.8;">
+                        ${hasPrompts ? 'System and user prompts are ready' : 'Click "Configure Prompts & Field Mapping" to add prompts'}
+                      </div>
+                    </div>
+                  </div>
+
                 </div>
+
+
               </div>
             `;
           } else {
