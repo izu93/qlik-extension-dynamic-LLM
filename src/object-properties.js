@@ -13,7 +13,7 @@ export default {
     // Initial data fetch configuration
     qInitialDataFetch: [
       {
-        qWidth: 10, // Number of columns to fetch
+        qWidth: 40, // Number of columns to fetch
         qHeight: 100, // Number of rows to fetch
       },
     ],
