@@ -698,13 +698,11 @@ export default function supernova() {
   `;
       };
 
-      // ===== STEP 4: REAL-TIME FIELD DETECTION FUNCTIONS =====
-
-      // Enhanced field detection that works with and without {{}} syntax
+      // Simple placeholder detection for {{fieldName}} syntax only
       function detectPlaceholdersInPrompts(systemPrompt, userPrompt) {
         const allText = (systemPrompt || "") + " " + (userPrompt || "");
         
-        // First, detect traditional {{fieldName}} placeholders
+        // Only detect traditional {{fieldName}} placeholders
         const traditionalMatches = [...allText.matchAll(/\{\{([^}]+)\}\}/g)];
         const detectedFields = traditionalMatches.map((match) => ({
           placeholder: match[0], // Full {{fieldName}}
@@ -715,99 +713,19 @@ export default function supernova() {
           autoMappable: true
         }));
 
-        // Get available fields from layout for intelligent detection
-        const availableFields = getAvailableFields(layout);
-        const allAvailableFieldNames = [
-          ...availableFields.dimensions.map(d => d.name),
-          ...availableFields.measures.map(m => m.name)
-        ];
-
-        // Enhanced intelligent field detection without requiring {{}}
-        if (allAvailableFieldNames.length > 0) {
-          // Create patterns for field detection
-          allAvailableFieldNames.forEach(fieldName => {
-            // Create more comprehensive variations of field names to match
-            const variations = [
-              fieldName, // Exact match
-              fieldName.toLowerCase(), // Lowercase
-              fieldName.toUpperCase(), // Uppercase
-              fieldName.replace(/[_\s]/g, ''), // Remove underscores and spaces
-              fieldName.replace(/[_]/g, ' '), // Replace underscores with spaces
-              fieldName.replace(/\s/g, '_'), // Replace spaces with underscores
-              fieldName.replace(/\s/g, ''), // Remove all spaces
-              // Handle camelCase and PascalCase variations
-              fieldName.replace(/([a-z])([A-Z])/g, '$1 $2'), // Split camelCase
-              fieldName.replace(/([A-Z])([A-Z][a-z])/g, '$1 $2'), // Split PascalCase
-              // Handle common abbreviations and patterns
-              fieldName.replace(/ID$/i, 'Id'), // Handle ID endings
-              fieldName.replace(/^ID/i, 'Id'), // Handle ID beginnings
-            ];
-            
-            // Add additional variations for common patterns
-            if (fieldName.includes('ID')) {
-              variations.push(fieldName.replace(/ID/g, 'Id'));
-              variations.push(fieldName.replace(/ID/g, 'id'));
-            }
-            if (fieldName.includes('Amount')) {
-              variations.push(fieldName.replace(/Amount/g, 'Amt'));
-              variations.push(fieldName.replace(/Amount/g, 'amount'));
-            }
-            
-            // Remove duplicates and filter out very short patterns
-            const uniqueVariations = [...new Set(variations)].filter(v => v.length >= 2);
-            
-            uniqueVariations.forEach(pattern => {
-              // Create regex to find field references (case insensitive, word boundaries)
-              // Use more flexible word boundary detection
-              const escapedPattern = pattern.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-              const regex = new RegExp(`(?:^|\\s|\\b)${escapedPattern}(?=\\s|\\b|$)`, 'gi');
-              let match;
-              
-              while ((match = regex.exec(allText)) !== null) {
-                const foundText = match[0].trim(); // Remove any leading/trailing whitespace
-                
-                // Skip if this field is already detected (avoid duplicates)
-                const alreadyDetected = detectedFields.some(df => 
-                  df.fieldName.toLowerCase() === fieldName.toLowerCase()
-                );
-                
-                if (!alreadyDetected && foundText.length > 1) {
-                  // Calculate confidence based on how close the match is
-                  let confidence = 85; // Base confidence for intelligent detection
-                  if (pattern === fieldName) confidence = 100; // Exact match
-                  else if (pattern.toLowerCase() === fieldName.toLowerCase()) confidence = 95; // Case difference only
-                  else if (foundText.toLowerCase() === fieldName.toLowerCase()) confidence = 90; // Found text matches exactly
-                  
-                  detectedFields.push({
-                    placeholder: foundText, // The actual text found
-                    fieldName: fieldName, // Use proper case from available fields
-                    position: match.index,
-                    source: systemPrompt && systemPrompt.toLowerCase().includes(foundText.toLowerCase()) ? "system" : "user",
-                    detectionMethod: "intelligent",
-                    suggestedReplacement: `{{${fieldName}}}`, // Suggest {{}} format
-                    autoMappable: true, // Can be auto-mapped
-                    confidence: confidence
-                  });
-                }
-              }
-            });
-          });
-        }
-
-        // Remove duplicates based on fieldName (case insensitive) and sort by confidence
-        const uniqueFields = detectedFields.filter((field, index, self) =>
-          index === self.findIndex(f => f.fieldName.toLowerCase() === field.fieldName.toLowerCase())
-        ).sort((a, b) => (b.confidence || 0) - (a.confidence || 0)); // Sort by confidence descending
-
-        return uniqueFields;
+        return detectedFields;
       }
 
       // Get available fields from current layout
       function getAvailableFields(layout) {
+        console.log('🔍 getAvailableFields called with layout:', layout);
         const dimensions = layout?.qHyperCube?.qDimensionInfo || [];
         const measures = layout?.qHyperCube?.qMeasureInfo || [];
 
-        return {
+        console.log('🔍 Raw dimensions:', dimensions);
+        console.log('🔍 Raw measures:', measures);
+
+        const result = {
           dimensions: dimensions.map((dim) => ({
             name: dim.qFallbackTitle,
             type: "dimension",
@@ -819,6 +737,9 @@ export default function supernova() {
             expression: measure.qDef?.qDef || measure.qFallbackTitle,
           })),
         };
+
+        console.log('🔍 Processed result:', result);
+        return result;
       }
 
       // Enhanced field matching algorithm that works with intelligent detection
@@ -922,6 +843,8 @@ export default function supernova() {
 
         // Update suggestions
         updateSmartSuggestions(suggestions);
+
+
 
         return suggestions;
       }
@@ -1501,20 +1424,24 @@ export default function supernova() {
                     <div class="smart-mapping-prompt-header">
                       System Prompt
                     </div>
-                    <div class="smart-mapping-prompt-container">
+                    <div class="smart-mapping-prompt-container" style="position: relative;">
                       <textarea id="smartMappingSystemPrompt" class="smart-mapping-textarea" 
                                 placeholder="Enter your system prompt. Reference field names naturally or use {{field}} placeholders..."></textarea>
+                      <div id="systemPromptOverlay" class="prompt-overlay"></div>
                     </div>
+
                   </div>
                   
                   <div class="smart-mapping-prompt-section">
                     <div class="smart-mapping-prompt-header">
                       User Prompt
                     </div>
-                    <div class="smart-mapping-prompt-container">
+                    <div class="smart-mapping-prompt-container" style="position: relative;">
                       <textarea id="smartMappingUserPrompt" class="smart-mapping-textarea" 
                                 placeholder="Enter your user prompt. Reference field names naturally or use {{field}} placeholders..."></textarea>
+                      <div id="userPromptOverlay" class="prompt-overlay"></div>
                     </div>
+
                   </div>
                 </div>
                 
@@ -1768,7 +1695,107 @@ export default function supernova() {
         color: #adb5bd;
       }
       
-
+      /* Basic Field Highlighting Styles */
+      .field-highlight {
+        background: #e3f2fd;
+        border: 1px solid #2196f3;
+        border-radius: 3px;
+        padding: 1px 2px;
+        display: inline;
+        font-weight: 500;
+      }
+      
+      .field-highlight.intelligent {
+        background: #e8f5e8;
+        border-color: #4caf50;
+        color: #2e7d32;
+      }
+      
+      .field-highlight.traditional {
+        background: #fff3e0;
+        border-color: #ff9800;
+        color: #f57c00;
+      }
+      
+      .prompt-preview {
+        margin-top: 8px !important;
+        padding: 12px !important;
+        background: #f0f8ff !important;
+        border: 2px solid #4CAF50 !important;
+        border-radius: 6px !important;
+        font-size: 14px !important;
+        line-height: 1.5 !important;
+        min-height: 60px !important;
+        max-height: 200px !important;
+        overflow-y: auto !important;
+        white-space: pre-wrap !important;
+        word-wrap: break-word !important;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1) !important;
+        width: 100% !important;
+        box-sizing: border-box !important;
+      }
+      
+      .prompt-preview:empty {
+        display: none !important;
+      }
+      
+      .prompt-preview:not(:empty) {
+        display: block !important;
+        visibility: visible !important;
+        opacity: 1 !important;
+        position: relative !important;
+        z-index: 1 !important;
+      }
+      
+      #systemPromptPreview, #userPromptPreview {
+        display: block !important;
+        visibility: visible !important;
+        opacity: 1 !important;
+        position: relative !important;
+        z-index: 1 !important;
+      }
+      
+      .prompt-overlay {
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        pointer-events: none;
+        padding: 12px;
+        font-family: inherit;
+        font-size: 14px;
+        line-height: 1.5;
+        white-space: pre-wrap;
+        word-wrap: break-word;
+        overflow: hidden;
+        color: transparent;
+        background: transparent;
+        border: 1px solid transparent;
+        border-radius: 6px;
+        box-sizing: border-box;
+        z-index: 1;
+      }
+      
+      .prompt-overlay .field-highlight {
+        background: rgba(46, 125, 50, 0.15) !important;
+        border-bottom: 2px solid #4CAF50 !important;
+        border-radius: 0 !important;
+        padding: 0 !important;
+        margin: 0 !important;
+        color: transparent !important;
+        display: inline !important;
+      }
+      
+      .prompt-overlay .field-highlight.intelligent {
+        background: rgba(46, 125, 50, 0.2) !important;
+        border-bottom: 2px solid #4CAF50 !important;
+      }
+      
+      .prompt-overlay .field-highlight.traditional {
+        background: rgba(255, 152, 0, 0.2) !important;
+        border-bottom: 2px solid #FF9800 !important;
+      }
 
       .smart-mapping-fields-panel {
         background: white;
