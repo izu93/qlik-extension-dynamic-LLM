@@ -841,8 +841,7 @@ export default function supernova() {
         // Update available fields display
         updateAvailableFieldsDisplay(availableFields);
 
-        // Update suggestions
-        updateSmartSuggestions(suggestions);
+
 
 
 
@@ -925,6 +924,9 @@ export default function supernova() {
               padding: 12px;
               margin-bottom: 8px;
               transition: all 0.2s ease;
+              width: 100%;
+              box-sizing: border-box;
+              overflow: hidden;
             ">
               <div style="display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 8px;">
                 <div style="flex: 1;">
@@ -1025,8 +1027,8 @@ export default function supernova() {
                     : ""
                 }
                 
-                <div style="display: flex; align-items: center; gap: 8px;">
-                  <span style="font-size: 10px; color: #6c757d; font-weight: 600; flex-shrink: 0;">
+                <div style="display: flex; align-items: center; gap: 8px; width: 100%; box-sizing: border-box;">
+                  <span style="font-size: 10px; color: #6c757d; font-weight: 600; flex-shrink: 0; white-space: nowrap;">
                     ${suggestion.detectionMethod === "intelligent" ? "Override:" : "Map to:"}
                   </span>
                   <select 
@@ -1035,12 +1037,14 @@ export default function supernova() {
                     onchange="handleFieldMappingChange(${index}, this.value)"
                     style="
                       flex: 1;
+                      min-width: 0;
                       padding: 4px 8px;
                       border: 1px solid #ddd;
                       border-radius: 4px;
                       font-size: 11px;
                       background: white;
                       cursor: pointer;
+                      max-width: calc(100% - 80px);
                       ${suggestion.detectionMethod === "intelligent" ? 'opacity: 0.7;' : ''}
                     "
                   >
@@ -1138,9 +1142,6 @@ export default function supernova() {
           // Update statistics
           updateFieldStats(currentFieldSuggestions, currentFieldSuggestions);
 
-          // Update suggestions panel
-          updateSmartSuggestions(currentFieldSuggestions);
-
           // Update validation status
           updateMappingValidation();
         }
@@ -1155,7 +1156,6 @@ export default function supernova() {
           // Refresh the display
           updateDetectedFieldsList(currentFieldSuggestions);
           updateFieldStats(currentFieldSuggestions, currentFieldSuggestions);
-          updateSmartSuggestions(currentFieldSuggestions);
           updateMappingValidation();
         }
       };
@@ -1171,7 +1171,6 @@ export default function supernova() {
             // Refresh the display
             updateDetectedFieldsList(currentFieldSuggestions);
             updateFieldStats(currentFieldSuggestions, currentFieldSuggestions);
-            updateSmartSuggestions(currentFieldSuggestions);
             updateMappingValidation();
           }
         }
@@ -1186,7 +1185,6 @@ export default function supernova() {
           // Refresh the display
           updateDetectedFieldsList(currentFieldSuggestions);
           updateFieldStats(currentFieldSuggestions, currentFieldSuggestions);
-          updateSmartSuggestions(currentFieldSuggestions);
           updateMappingValidation();
         }
       };
@@ -1282,115 +1280,7 @@ export default function supernova() {
         }
       }
 
-      function updateSmartSuggestions(suggestions) {
-        const suggestionsContainer = document.getElementById(
-          "smartMappingSuggestions"
-        );
-        if (!suggestionsContainer) return;
 
-        if (suggestions.length === 0) {
-          suggestionsContainer.innerHTML = `
-            <div style="text-align: center; color: #856404;">
-              <div style="font-size: 16px; margin-bottom: 4px;">💡</div>
-              <div style="font-size: 11px;">Add {{fieldName}} placeholders to your prompts to get smart mapping suggestions</div>
-            </div>
-          `;
-          return;
-        }
-
-        const mapped = suggestions.filter((s) => s.mappedField);
-        const highConfidence = suggestions.filter(
-          (s) => s.confidence >= 80 && s.suggestedField && !s.mappedField
-        );
-        const mediumConfidence = suggestions.filter(
-          (s) => s.confidence >= 40 && s.confidence < 80 && !s.mappedField
-        );
-        const needManualMapping = suggestions.filter(
-          (s) => s.confidence < 40 && !s.mappedField
-        );
-
-        let suggestionsHTML = "";
-
-        if (mapped.length > 0) {
-          suggestionsHTML += `
-            <div style="margin-bottom: 8px;">
-              <div style="font-weight: 600; font-size: 10px; color: #28a745; margin-bottom: 4px;">
-                ✅ Mapped Fields (${mapped.length})
-              </div>
-              ${mapped
-                .map(
-                  (s) => `
-                <div style="font-size: 9px; margin-bottom: 2px;">
-                  ${s.placeholder} → ${s.mappedField}
-                </div>
-              `
-                )
-                .join("")}
-            </div>
-          `;
-        }
-
-        if (highConfidence.length > 0) {
-          suggestionsHTML += `
-            <div style="margin-bottom: 8px;">
-              <div style="font-weight: 600; font-size: 10px; color: #2196f3; margin-bottom: 4px;">
-                🔄 Ready to Auto-Map (${highConfidence.length})
-              </div>
-              ${highConfidence
-                .map(
-                  (s) => `
-                <div style="font-size: 9px; margin-bottom: 2px;">
-                  ${s.placeholder} → ${s.suggestedField.name}
-                </div>
-              `
-                )
-                .join("")}
-            </div>
-          `;
-        }
-
-        if (mediumConfidence.length > 0) {
-          suggestionsHTML += `
-            <div style="margin-bottom: 8px;">
-              <div style="font-weight: 600; font-size: 10px; color: #ffc107; margin-bottom: 4px;">
-                ⚠️ Review Suggested (${mediumConfidence.length})
-              </div>
-              ${mediumConfidence
-                .map(
-                  (s) => `
-                <div style="font-size: 9px; margin-bottom: 2px;">
-                  ${s.placeholder} → ${
-                    s.suggestedField ? s.suggestedField.name : "No suggestion"
-                  }
-                </div>
-              `
-                )
-                .join("")}
-            </div>
-          `;
-        }
-
-        if (needManualMapping.length > 0) {
-          suggestionsHTML += `
-            <div>
-              <div style="font-weight: 600; font-size: 10px; color: #dc3545; margin-bottom: 4px;">
-                ❌ Manual Mapping Needed (${needManualMapping.length})
-              </div>
-              ${needManualMapping
-                .map(
-                  (s) => `
-                <div style="font-size: 9px; margin-bottom: 2px;">
-                  ${s.placeholder} → Use dropdown to select
-                </div>
-              `
-                )
-                .join("")}
-            </div>
-          `;
-        }
-
-        suggestionsContainer.innerHTML = suggestionsHTML;
-      }
 
       // Store current suggestions globally for access by other functions
       let currentFieldSuggestions = [];
@@ -1418,7 +1308,37 @@ export default function supernova() {
               
               <!-- Modal Content -->
               <div class="smart-mapping-modal-content">
-                <!-- Left Panel: Prompts -->
+                <!-- Left Panel: Available Fields -->
+                <div class="smart-mapping-available-panel">
+                  <div class="smart-mapping-section full-height">
+                    <div class="smart-mapping-section-header">
+                      Available Data Fields
+                      <button id="smartMappingRefreshBtn" class="smart-mapping-auto-map-btn" style="background: #17a2b8;">
+                        Refresh
+                      </button>
+                    </div>
+                    <div class="smart-mapping-available-fields full-height">
+                      <div class="smart-mapping-field-group">
+                        <div class="smart-mapping-field-group-header">
+                          📊 Dimensions
+                        </div>
+                        <div id="smartMappingDimensions" class="smart-mapping-field-tags">
+                          <!-- Dimensions will be populated here -->
+                        </div>
+                      </div>
+                      <div class="smart-mapping-field-group">
+                        <div class="smart-mapping-field-group-header">
+                          📈 Measures
+                        </div>
+                        <div id="smartMappingMeasures" class="smart-mapping-field-tags">
+                          <!-- Measures will be populated here -->
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                
+                <!-- Middle Panel: Prompts -->
                 <div class="smart-mapping-prompts-panel">
                   <div class="smart-mapping-prompt-section">
                     <div class="smart-mapping-prompt-header">
@@ -1429,7 +1349,6 @@ export default function supernova() {
                                 placeholder="Enter your system prompt. Reference field names naturally or use {{field}} placeholders..."></textarea>
                       <div id="systemPromptOverlay" class="prompt-overlay"></div>
                     </div>
-
                   </div>
                   
                   <div class="smart-mapping-prompt-section">
@@ -1441,21 +1360,29 @@ export default function supernova() {
                                 placeholder="Enter your user prompt. Reference field names naturally or use {{field}} placeholders..."></textarea>
                       <div id="userPromptOverlay" class="prompt-overlay"></div>
                     </div>
-
                   </div>
                 </div>
                 
-                <!-- Right Panel: Field Mapping -->
-                <div class="smart-mapping-fields-panel">
+                <!-- Right Panel: Detected Fields & Suggestions -->
+                <div class="smart-mapping-results-panel">
                   <!-- Detected Fields -->
-                  <div class="smart-mapping-section">
+                  <div class="smart-mapping-section large-section">
                     <div class="smart-mapping-section-header">
-                      Detected Fields
-                      <button id="smartMappingAutoMapBtn" class="smart-mapping-auto-map-btn">
-                        Auto-Map Fields
-                      </button>
+                      <div class="smart-mapping-header-content">
+                        <span class="smart-mapping-header-title">Detected Fields</span>
+                        <div class="smart-mapping-toolbar">
+                          <button id="smartMappingAutoMapBtn" class="smart-mapping-toolbar-btn primary">
+                            <span class="btn-icon">🔗</span>
+                            Auto-Map Fields
+                          </button>
+                          <button class="smart-mapping-toolbar-btn secondary">
+                            <span class="btn-icon">🧹</span>
+                            Clear All
+                          </button>
+                        </div>
+                      </div>
                     </div>
-                    <div id="smartMappingFieldsList" class="smart-mapping-fields-list">
+                    <div id="smartMappingFieldsList" class="smart-mapping-fields-list large-list">
                       <!-- Fields will be populated here -->
                     </div>
                     <div id="smartMappingStats" class="smart-mapping-stats">
@@ -1474,43 +1401,7 @@ export default function supernova() {
                     </div>
                   </div>
                   
-                  <!-- Available Fields -->
-                  <div class="smart-mapping-section">
-                    <div class="smart-mapping-section-header">
-                      Available Data Fields
-                      <button id="smartMappingRefreshBtn" class="smart-mapping-auto-map-btn" style="background: #17a2b8;">
-                        Refresh
-                      </button>
-                    </div>
-                    <div class="smart-mapping-available-fields">
-                      <div class="smart-mapping-field-group">
-                        <div class="smart-mapping-field-group-header">
-                          Dimensions
-                        </div>
-                        <div id="smartMappingDimensions" class="smart-mapping-field-tags">
-                          <!-- Dimensions will be populated here -->
-                        </div>
-                      </div>
-                      <div class="smart-mapping-field-group">
-                        <div class="smart-mapping-field-group-header">
-                          Measures
-                        </div>
-                        <div id="smartMappingMeasures" class="smart-mapping-field-tags">
-                          <!-- Measures will be populated here -->
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                  
-                  <!-- Smart Suggestions -->
-                  <div class="smart-mapping-section">
-                    <div class="smart-mapping-section-header">
-                      Smart Suggestions
-                    </div>
-                    <div id="smartMappingSuggestions" class="smart-mapping-suggestions">
-                      <!-- Suggestions will be populated here -->
-                    </div>
-                  </div>
+
                 </div>
               </div>
               
@@ -1626,9 +1517,17 @@ export default function supernova() {
       .smart-mapping-modal-content {
         flex: 1;
         display: grid;
-        grid-template-columns: 1fr 420px;
+        grid-template-columns: 280px 1fr 360px;
         overflow: hidden;
         min-height: 0;
+      }
+      
+      .smart-mapping-available-panel {
+        background: white;
+        border-right: 1px solid #e9ecef;
+        overflow-y: auto;
+        display: flex;
+        flex-direction: column;
       }
       
       .smart-mapping-prompts-panel {
@@ -1639,6 +1538,16 @@ export default function supernova() {
         border-right: 1px solid #e9ecef;
         overflow-y: auto;
         background: #fafbfc;
+      }
+      
+      .smart-mapping-results-panel {
+        background: white;
+        padding: 24px;
+        overflow: hidden;
+        display: flex;
+        flex-direction: column;
+        gap: 20px;
+        min-height: 0;
       }
       
       .smart-mapping-prompt-section {
@@ -1797,14 +1706,7 @@ export default function supernova() {
         border-bottom: 2px solid #FF9800 !important;
       }
 
-      .smart-mapping-fields-panel {
-        background: white;
-        padding: 24px;
-        overflow-y: auto;
-        display: flex;
-        flex-direction: column;
-        gap: 20px;
-      }
+
       
       .smart-mapping-section {
         background: white;
@@ -1813,6 +1715,24 @@ export default function supernova() {
         overflow: hidden;
       }
       
+      .smart-mapping-section.full-height {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        border: none;
+        border-radius: 0;
+      }
+      
+      .smart-mapping-section.large-section {
+        flex: 2;
+        min-height: 400px;
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
+      }
+      
+
+      
       .smart-mapping-section-header {
         background: #f8f9fa;
         padding: 12px 16px;
@@ -1820,10 +1740,66 @@ export default function supernova() {
         font-size: 14px;
         font-weight: 600;
         color: #495057;
+        flex-shrink: 0;
+      }
+      
+      .smart-mapping-header-content {
         display: flex;
         align-items: center;
         justify-content: space-between;
+        gap: 12px;
+      }
+      
+      .smart-mapping-header-title {
+        font-size: 14px;
+        font-weight: 600;
+        color: #495057;
+      }
+      
+      .smart-mapping-toolbar {
+        display: flex;
+        align-items: center;
         gap: 8px;
+      }
+      
+      .smart-mapping-toolbar-btn {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 6px 12px;
+        border: none;
+        border-radius: 6px;
+        font-size: 11px;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.2s ease;
+        white-space: nowrap;
+      }
+      
+      .smart-mapping-toolbar-btn.primary {
+        background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
+        color: white;
+        box-shadow: 0 2px 4px rgba(40, 167, 69, 0.2);
+      }
+      
+      .smart-mapping-toolbar-btn.primary:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 4px 8px rgba(40, 167, 69, 0.3);
+      }
+      
+      .smart-mapping-toolbar-btn.secondary {
+        background: #f8f9fa;
+        color: #6c757d;
+        border: 1px solid #e9ecef;
+      }
+      
+      .smart-mapping-toolbar-btn.secondary:hover {
+        background: #e9ecef;
+        color: #495057;
+      }
+      
+      .btn-icon {
+        font-size: 12px;
       }
       
       .smart-mapping-auto-map-btn {
@@ -1870,6 +1846,23 @@ export default function supernova() {
         scrollbar-color: #ced4da #f8f9fa;
       }
       
+      .smart-mapping-fields-list.large-list {
+        flex: 1;
+        overflow-y: auto;
+        min-height: 0;
+        height: 100%;
+        scrollbar-width: thin;
+        scrollbar-color: #ced4da #f8f9fa;
+        padding: 16px;
+      }
+      
+      .smart-mapping-fields-list.full-height {
+        flex: 1;
+        max-height: none;
+        height: 100%;
+        overflow-y: auto;
+      }
+      
       .smart-mapping-fields-list::-webkit-scrollbar {
         width: 6px;
       }
@@ -1888,12 +1881,32 @@ export default function supernova() {
         background: #adb5bd;
       }
       
+      .smart-mapping-fields-list.large-list::-webkit-scrollbar {
+        width: 8px;
+      }
+      
+      .smart-mapping-fields-list.large-list::-webkit-scrollbar-track {
+        background: #f8f9fa;
+        border-radius: 4px;
+      }
+      
+      .smart-mapping-fields-list.large-list::-webkit-scrollbar-thumb {
+        background: #ced4da;
+        border-radius: 4px;
+      }
+      
+      .smart-mapping-fields-list.large-list::-webkit-scrollbar-thumb:hover {
+        background: #adb5bd;
+      }
+      
       .smart-mapping-stats {
         padding: 12px 16px;
         display: flex;
         justify-content: space-around;
         background: #f8f9fa;
         border-top: 1px solid #e9ecef;
+        flex-shrink: 0;
+        margin-top: 8px;
       }
       
       .smart-mapping-stat {
@@ -1921,6 +1934,12 @@ export default function supernova() {
         overflow-y: auto;
         scrollbar-width: thin;
         scrollbar-color: #ced4da #f8f9fa;
+      }
+      
+      .smart-mapping-available-fields.full-height {
+        flex: 1;
+        max-height: none;
+        height: 100%;
       }
       
       .smart-mapping-available-fields::-webkit-scrollbar {
@@ -1966,7 +1985,7 @@ export default function supernova() {
         display: flex;
         flex-wrap: wrap;
         gap: 4px;
-        max-height: 120px;
+        max-height: 200px;
         overflow-y: auto;
         overflow-x: hidden;
         scrollbar-width: thin;
@@ -2037,6 +2056,11 @@ export default function supernova() {
       
       .smart-mapping-field-selector {
         transition: all 0.2s ease;
+        max-width: 100%;
+        width: 100%;
+        box-sizing: border-box;
+        overflow: hidden;
+        text-overflow: ellipsis;
       }
       
       .smart-mapping-field-selector:focus {
@@ -2049,17 +2073,9 @@ export default function supernova() {
         border-color: #667eea;
       }
       
-      .smart-mapping-suggestions {
-        padding: 16px;
-        background: #fff9c4;
-        font-size: 11px;
-        color: #856404;
-        line-height: 1.4;
-        max-height: 120px;
-        overflow-y: auto;
-        scrollbar-width: thin;
-        scrollbar-color: #d4af37 #fff9c4;
-      }
+
+      
+
       
       .smart-mapping-suggestions::-webkit-scrollbar {
         width: 6px;
@@ -2075,9 +2091,7 @@ export default function supernova() {
         border-radius: 3px;
       }
       
-      .smart-mapping-suggestions::-webkit-scrollbar-thumb:hover {
-        background: #b8941f;
-      }
+
       
       .smart-mapping-modal-footer {
         padding: 16px 24px;
@@ -2195,6 +2209,8 @@ export default function supernova() {
 
 
 
+
+
         // Prompt text changes
         document
           .getElementById("smartMappingSystemPrompt")
@@ -2262,7 +2278,6 @@ export default function supernova() {
             // Update displays
             updateDetectedFieldsList(currentFieldSuggestions);
             updateFieldStats(currentFieldSuggestions, currentFieldSuggestions);
-            updateSmartSuggestions(currentFieldSuggestions);
             updateMappingValidation();
           }
         }, 100);
@@ -2328,7 +2343,6 @@ export default function supernova() {
         // Update all displays
         updateDetectedFieldsList(currentFieldSuggestions);
         updateFieldStats(currentFieldSuggestions, currentFieldSuggestions);
-        updateSmartSuggestions(currentFieldSuggestions);
         updateMappingValidation();
 
         // Show success message
@@ -2530,7 +2544,6 @@ export default function supernova() {
             // Update displays
             updateDetectedFieldsList(currentFieldSuggestions);
             updateFieldStats(currentFieldSuggestions, currentFieldSuggestions);
-            updateSmartSuggestions(currentFieldSuggestions);
             updateMappingValidation();
           }
 
@@ -2848,6 +2861,8 @@ export default function supernova() {
         detectAndDisplayFields();
       }
 
+
+
       async function handleRefreshFields() {
         try {
           // Show loading state immediately
@@ -2883,7 +2898,6 @@ export default function supernova() {
             // Update all displays
             updateDetectedFieldsList(suggestions);
             updateFieldStats(currentFieldSuggestions, suggestions);
-            updateSmartSuggestions(suggestions);
             updateMappingValidation();
           }
           
