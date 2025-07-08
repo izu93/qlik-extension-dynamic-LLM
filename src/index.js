@@ -1251,34 +1251,40 @@ export default function supernova() {
         }
       };
 
-      // Update mapping validation status
+      // FIXED: Update mapping validation status using activeMappings
       function updateMappingValidation() {
         const validationDiv = document.getElementById("smartMappingValidation");
         if (!validationDiv) return;
 
-        const totalFields = currentFieldSuggestions.length;
-        const mappedFields = currentFieldSuggestions.filter(
-          (s) => s.mappedField
-        ).length;
-        const keptAsText = currentFieldSuggestions.filter(
-          (s) => s.keepAsText
-        ).length;
-        const resolvedFields = mappedFields + keptAsText;
+        // Use activeMappings for validation, not currentFieldSuggestions
+        const totalMappings = activeMappings.length;
+        const systemPrompt = document.getElementById("smartMappingSystemPrompt")?.value || "";
+        const userPrompt = document.getElementById("smartMappingUserPrompt")?.value || "";
+        const allPromptText = systemPrompt + " " + userPrompt;
+        
+        // Count total placeholders in prompts
+        const placeholderMatches = allPromptText.match(/\{\{[^}]+\}\}/g) || [];
+        const totalFieldsDetected = placeholderMatches.length;
+        const needMappingCount = Math.max(0, totalFieldsDetected - totalMappings);
 
-        if (totalFields === 0) {
-          validationDiv.innerHTML =
-            "Add field references to your prompts (use field names naturally or {{field}} syntax) for smart mapping";
+        console.log("🔍 Validation status:", {
+          totalFieldsDetected,
+          totalMappings,
+          needMappingCount,
+          activeMappings: activeMappings.length
+        });
+
+        if (totalFieldsDetected === 0) {
+          validationDiv.innerHTML = "Add field references to your prompts (use {{field}} syntax) for smart mapping";
           validationDiv.style.color = "#6c757d";
-        } else if (resolvedFields === 0) {
-          validationDiv.innerHTML = `⚠️ ${totalFields} fields need action (map or keep as text)`;
+        } else if (totalMappings === 0) {
+          validationDiv.innerHTML = `⚠️ ${totalFieldsDetected} fields detected but no mappings created`;
           validationDiv.style.color = "#ffc107";
-        } else if (resolvedFields < totalFields) {
-          validationDiv.innerHTML = `⚠️ ${resolvedFields}/${totalFields} fields resolved - ${
-            totalFields - resolvedFields
-          } remaining (${mappedFields} mapped, ${keptAsText} as text)`;
+        } else if (needMappingCount > 0) {
+          validationDiv.innerHTML = `⚠️ ${totalMappings}/${totalFieldsDetected} fields mapped - ${needMappingCount} remaining`;
           validationDiv.style.color = "#ffc107";
         } else {
-          validationDiv.innerHTML = `✅ All ${totalFields} fields resolved and ready to save (${mappedFields} mapped, ${keptAsText} as text)`;
+          validationDiv.innerHTML = `✅ All ${totalFieldsDetected} fields mapped and ready to save`;
           validationDiv.style.color = "#28a745";
         }
       }
@@ -1413,6 +1419,112 @@ export default function supernova() {
         }
       }
 
+      // Track click timing to prevent rapid clicks
+      let lastClickTime = 0;
+      let clickCount = 0;
+
+      function preventFastClicks(event) {
+        const now = Date.now();
+        if (now - lastClickTime < 300) {
+          clickCount++;
+          if (clickCount > 2) {
+            console.log("🚫 Preventing fast click selection");
+            event.preventDefault();
+            return false;
+          }
+        } else {
+          clickCount = 1;
+        }
+        lastClickTime = now;
+      }
+
+      function handleTextSelectionStrict(event) {
+        const textarea = event.target;
+        const now = Date.now();
+        
+        // Prevent multiple rapid triggers
+        if (now - lastClickTime < 200) {
+          console.log("🚫 Ignoring rapid selection event");
+          return;
+        }
+
+        // Extra delay for ultra-strict validation
+        setTimeout(() => {
+          const selection = window.getSelection();
+          const selectedText = selection.toString().trim();
+          
+          console.log("🖱️ STRICT: Text selection event triggered");
+          console.log("📝 STRICT: Selected text:", `"${selectedText}"`);
+          console.log("📏 STRICT: Selection length:", selectedText.length);
+          console.log("🎯 STRICT: Textarea selection start/end:", textarea.selectionStart, textarea.selectionEnd);
+
+          // ULTRA-STRICT validation criteria
+          const isValidSelection = (
+            selectedText && 
+            selectedText.length >= 3 &&  // Minimum 3 characters (stricter)
+            selectedText.length <= 50 && // Maximum 50 characters (stricter)
+            textarea.selectionStart !== textarea.selectionEnd && // Must have actual selection range
+            !selectedText.includes('\n') && // Don't allow multi-line selections
+            selectedText !== textarea.value.trim() && // Don't allow selecting entire content
+            selectedText.split(' ').length <= 10 && // Maximum 10 words
+            !/^\s+$/.test(selectedText) // Not just whitespace
+          );
+
+          console.log("✅ STRICT: Selection validation:", {
+            hasText: !!selectedText,
+            minLength: selectedText.length >= 3,
+            maxLength: selectedText.length <= 50,
+            hasRange: textarea.selectionStart !== textarea.selectionEnd,
+            singleLine: !selectedText.includes('\n'),
+            notEntireContent: selectedText !== textarea.value.trim(),
+            maxWords: selectedText.split(' ').length <= 10,
+            notWhitespace: !/^\s+$/.test(selectedText),
+            isValid: isValidSelection
+          });
+
+          if (isValidSelection) {
+            // Double-check selection is still valid after delay
+            const currentSelection = window.getSelection().toString().trim();
+            if (currentSelection === selectedText) {
+              // Store selection info
+              selectedTextInfo = {
+                text: selectedText,
+                start: textarea.selectionStart,
+                end: textarea.selectionEnd,
+                textarea: textarea,
+                textareaId: textarea.id,
+              };
+
+              // Visual feedback
+              console.log("✅ STRICT: Stored valid selection info:", selectedTextInfo);
+              textarea.classList.add("has-selection");
+
+              // Show field selector popup with additional delay
+              setTimeout(() => {
+                showFieldSelector(selectedText);
+              }, 200);
+
+              updateValidationMessage(
+                `Selected: "${selectedText}" - choose a field to map it to`
+              );
+            } else {
+              console.log("❌ STRICT: Selection changed during validation delay");
+            }
+          } else {
+            console.log("❌ STRICT: Selection did not meet validation criteria");
+            selectedTextInfo = null;
+            // Remove selection class from all textareas
+            document.querySelectorAll(".smart-mapping-textarea").forEach((ta) => {
+              ta.classList.remove("has-selection");
+            });
+            hideFieldSelector();
+            updateValidationMessage(
+              "Ready to create field mappings - select text in your prompts (3+ characters)"
+            );
+          }
+        }, 250); // Longer delay for ultra-strict mode
+      }
+
       function setupTextSelectionHandlers() {
         const textareas = document.querySelectorAll(".smart-mapping-textarea");
 
@@ -1420,12 +1532,16 @@ export default function supernova() {
           // Remove existing listeners to avoid duplicates
           textarea.removeEventListener("mouseup", handleTextSelection);
           textarea.removeEventListener("keyup", handleTextSelection);
+          textarea.removeEventListener("mouseup", handleTextSelectionStrict);
+          textarea.removeEventListener("keyup", handleTextSelectionStrict);
+          textarea.removeEventListener("selectstart", preventFastClicks);
           textarea.removeEventListener("input", handlePromptChange);
           textarea.removeEventListener("paste", handlePasteEvent);
 
-          // Handle text selection
-          textarea.addEventListener("mouseup", handleTextSelection);
-          textarea.addEventListener("keyup", handleTextSelection);
+          // Use ultra-strict handlers instead of regular ones
+          textarea.addEventListener("mouseup", handleTextSelectionStrict);
+          textarea.addEventListener("keyup", handleTextSelectionStrict);
+          textarea.addEventListener("selectstart", preventFastClicks);
 
           // Handle text changes (typing, pasting, etc.)
           textarea.addEventListener("input", handlePromptChange);
@@ -1436,7 +1552,7 @@ export default function supernova() {
           // Make textareas selectable
           textarea.classList.add("select-mode");
 
-          console.log(`Setup handlers for textarea: ${textarea.id}`);
+          console.log(`✅ Setup ULTRA-STRICT handlers for textarea: ${textarea.id}`);
         });
       }
 
@@ -1545,52 +1661,82 @@ export default function supernova() {
 
       function handleTextSelection(event) {
         const textarea = event.target;
-        const selection = window.getSelection();
-        const selectedText = selection.toString().trim();
+        
+        // Ultra-strict validation to prevent accidental triggers
+        setTimeout(() => {
+          const selection = window.getSelection();
+          const selectedText = selection.toString().trim();
+          
+          console.log("🖱️ Text selection event triggered");
+          console.log("📝 Selected text:", `"${selectedText}"`);
+          console.log("📏 Selection length:", selectedText.length);
+          console.log("🎯 Textarea selection start/end:", textarea.selectionStart, textarea.selectionEnd);
 
-        console.log("Text selection event - selected text:", selectedText);
-
-        if (selectedText && selectedText.length > 0) {
-          // Store selection info
-          selectedTextInfo = {
-            text: selectedText,
-            start: textarea.selectionStart,
-            end: textarea.selectionEnd,
-            textarea: textarea,
-            textareaId: textarea.id,
-          };
-
-          // Visual feedback
-          console.log("Stored selection info:", selectedTextInfo);
-          textarea.classList.add("has-selection");
-
-          // Show field selector popup
-          showFieldSelector(selectedText);
-
-          updateValidationMessage(
-            `Selected: "${selectedText}" - choose a field to map it to`
+          // ULTRA-STRICT validation criteria
+          const isValidSelection = (
+            selectedText && 
+            selectedText.length >= 2 &&  // Minimum 2 characters
+            selectedText.length <= 100 && // Maximum 100 characters to prevent whole paragraph selection
+            textarea.selectionStart !== textarea.selectionEnd && // Must have actual selection range
+            !selectedText.includes('\n') && // Don't allow multi-line selections
+            selectedText !== textarea.value.trim() // Don't allow selecting entire content
           );
-        } else {
-          selectedTextInfo = null;
-          // Remove selection class from all textareas
-          document.querySelectorAll(".smart-mapping-textarea").forEach((ta) => {
-            ta.classList.remove("has-selection");
+
+          console.log("✅ Selection validation:", {
+            hasText: !!selectedText,
+            minLength: selectedText.length >= 2,
+            maxLength: selectedText.length <= 100,
+            hasRange: textarea.selectionStart !== textarea.selectionEnd,
+            singleLine: !selectedText.includes('\n'),
+            notEntireContent: selectedText !== textarea.value.trim(),
+            isValid: isValidSelection
           });
-          hideFieldSelector();
-          updateValidationMessage(
-            "Ready to create field mappings - select text in your prompts"
-          );
-        }
+
+          if (isValidSelection) {
+            // Store selection info
+            selectedTextInfo = {
+              text: selectedText,
+              start: textarea.selectionStart,
+              end: textarea.selectionEnd,
+              textarea: textarea,
+              textareaId: textarea.id,
+            };
+
+            // Visual feedback
+            console.log("✅ Stored valid selection info:", selectedTextInfo);
+            textarea.classList.add("has-selection");
+
+            // Show field selector popup with delay to ensure selection is stable
+            setTimeout(() => {
+              showFieldSelector(selectedText);
+            }, 100);
+
+            updateValidationMessage(
+              `Selected: "${selectedText}" - choose a field to map it to`
+            );
+          } else {
+            console.log("❌ Selection did not meet validation criteria");
+            selectedTextInfo = null;
+            // Remove selection class from all textareas
+            document.querySelectorAll(".smart-mapping-textarea").forEach((ta) => {
+              ta.classList.remove("has-selection");
+            });
+            hideFieldSelector();
+            updateValidationMessage(
+              "Ready to create field mappings - select text in your prompts"
+            );
+          }
+        }, 150); // Increased delay to ensure selection is complete
       }
 
       function setupDragDropHandlers() {
-        // Use setTimeout to ensure DOM is ready
+        // Use longer timeout to ensure DOM is fully ready
         setTimeout(() => {
           const fieldTags = document.querySelectorAll(
             ".smart-mapping-field-tag"
           );
           console.log(
-            "Setting up drag handlers for",
+            "🎯 Setting up drag handlers for",
             fieldTags.length,
             "field tags"
           );
@@ -1609,16 +1755,16 @@ export default function supernova() {
 
             // Add click handler as fallback
             tag.addEventListener("click", function (e) {
-              console.log("Field tag clicked:", this.dataset.field);
+              console.log("🖱️ Field tag clicked:", this.dataset.field);
               if (selectedTextInfo) {
-                console.log("Creating mapping via click");
+                console.log("✅ Creating mapping via click");
                 createFieldMapping(
                   this.dataset.field,
                   this.dataset.type,
                   selectedTextInfo
                 );
               } else {
-                console.log("No text selected - please select text first");
+                console.log("⚠️ No text selected - please select text first");
                 updateValidationMessage(
                   "Please select text in the prompt first, then click a field"
                 );
@@ -1639,7 +1785,9 @@ export default function supernova() {
               this.style.cursor = "grab";
             });
           });
-        }, 100);
+          
+          console.log("✅ Drag handlers setup complete");
+        }, 500); // Increased delay for better reliability
       }
 
       function handleFieldDragStart(event) {
@@ -1739,9 +1887,9 @@ export default function supernova() {
 
         textarea.value = newValue;
 
-        // Create mapping object with unique ID - store the actual field name
+        // FIXED: Better ID generation to ensure uniqueness
         const mapping = {
-          id: `mapping_${Date.now()}_${Math.floor(Math.random() * 10000)}`,
+          id: `mapping_${Date.now()}_${activeMappings.length}_${Math.floor(Math.random() * 10000)}`,
           placeholder: placeholder,
           fieldName: fieldName, // This is the actual field name for LLM
           fieldType: fieldType,
@@ -1753,7 +1901,7 @@ export default function supernova() {
           textareaId: textInfo.textareaId,
         };
 
-        console.log("Created mapping object:", mapping);
+        console.log("✅ Created mapping object:", mapping);
 
         // Add to active mappings
         activeMappings.push(mapping);
@@ -1778,9 +1926,44 @@ export default function supernova() {
         }, 3000);
       }
 
+      // ADDITIONAL FIX: Refresh function to rebuild the display if things get out of sync
+      function refreshActiveMappingsDisplay() {
+        console.log("🔄 Refreshing active mappings display...");
+        
+        // Regenerate IDs for all mappings to ensure uniqueness
+        activeMappings.forEach((mapping, index) => {
+          if (!mapping.id || !mapping.id.includes('mapping_')) {
+            mapping.id = `mapping_${Date.now()}_${index}_${Math.floor(Math.random() * 10000)}`;
+            console.log(`🔧 Regenerated ID for mapping ${index}:`, mapping.id);
+          }
+        });
+
+        // Update all displays
+        updateActiveMappingsDisplay();
+        updateFieldTagStates();
+        updateMappingStats();
+        
+        console.log("✅ Refresh complete");
+      }
+
+      // Quick fix function for console debugging
+      window.fixMappingIds = function() {
+        console.log("🔧 Fixing mapping IDs...");
+        activeMappings.forEach((mapping, index) => {
+          const oldId = mapping.id;
+          mapping.id = `mapping_${Date.now()}_${index}_${Math.floor(Math.random() * 10000)}`;
+          console.log(`Fixed mapping ${index}: ${oldId} → ${mapping.id}`);
+        });
+        updateActiveMappingsDisplay();
+        console.log("✅ Fixed mapping IDs:", activeMappings.map(m => m.id));
+        return activeMappings.length;
+      };
+
       function updateActiveMappingsDisplay() {
         const container = document.getElementById("smartMappingActiveList");
         if (!container) return;
+
+        console.log("🔄 Updating active mappings display with:", activeMappings.length, "mappings");
 
         if (activeMappings.length === 0) {
           container.innerHTML = `
@@ -1798,121 +1981,152 @@ export default function supernova() {
         }
 
         const mappingsHTML = activeMappings
-          .map(
-            (mapping) => `
-          <div class="smart-mapping-active-mapping" style="
-            background: white;
-            border: 1px solid #e8f5e8;
-            border-radius: 8px;
-            padding: 12px;
-            margin-bottom: 8px;
-            border-left: 4px solid #4caf50;
-          ">
-            <div style="display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 8px;">
-              <div style="flex: 1; min-width: 0;">
-                <div style="font-weight: 600; font-size: 12px; color: #2e7d32; margin-bottom: 4px;">
-                  ${mapping.placeholder}
-                  <span style="
-                    background: ${
-                      mapping.source === "system" ? "#e3f2fd" : "#fff3e0"
-                    };
-                    color: ${
-                      mapping.source === "system" ? "#1565c0" : "#ef6c00"
-                    };
-                    padding: 2px 6px;
-                    border-radius: 10px;
-                    font-size: 9px;
-                    margin-left: 6px;
-                  ">${mapping.source}</span>
+          .map((mapping, index) => {
+            // Ensure each mapping has a valid ID
+            if (!mapping.id) {
+              mapping.id = `mapping_${Date.now()}_${index}_${Math.floor(Math.random() * 10000)}`;
+              console.log("🔧 Generated new ID for mapping:", mapping.id);
+            }
+
+            console.log(`🔍 Rendering mapping ${index}:`, mapping.id, "→", mapping.placeholder);
+
+            return `
+            <div class="smart-mapping-active-mapping" style="
+              background: white;
+              border: 1px solid #e8f5e8;
+              border-radius: 8px;
+              padding: 12px;
+              margin-bottom: 8px;
+              border-left: 4px solid #4caf50;
+            ">
+              <div style="display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 8px;">
+                <div style="flex: 1; min-width: 0;">
+                  <div style="font-weight: 600; font-size: 12px; color: #2e7d32; margin-bottom: 4px;">
+                    ${mapping.placeholder}
+                    <span style="
+                      background: ${
+                        mapping.source === "system" ? "#e3f2fd" : "#fff3e0"
+                      };
+                      color: ${
+                        mapping.source === "system" ? "#1565c0" : "#ef6c00"
+                      };
+                      padding: 2px 6px;
+                      border-radius: 10px;
+                      font-size: 9px;
+                      margin-left: 6px;
+                    ">${mapping.source}</span>
+                  </div>
+                  <div style="font-size: 10px; color: #6c757d; margin-bottom: 4px;">
+                    Original: "${mapping.originalText}"
+                  </div>
+                  <div style="font-size: 10px; color: #6c757d;">
+                    Field: ${mapping.fieldName} (${mapping.fieldType})
+                  </div>
                 </div>
-                <div style="font-size: 10px; color: #6c757d; margin-bottom: 4px;">
-                  Original: "${mapping.originalText}"
-                </div>
-                <div style="font-size: 10px; color: #6c757d;">
-                  Field: ${mapping.fieldName} (${mapping.fieldType})
-                </div>
+                <button 
+                  onclick="removeFieldMapping('${mapping.id}')"
+                  data-mapping-id="${mapping.id}"
+                  style="
+                    background: #dc3545;
+                    color: white;
+                    border: none;
+                    padding: 4px 8px;
+                    border-radius: 4px;
+                    font-size: 10px;
+                    cursor: pointer;
+                    flex-shrink: 0;
+                  "
+                  title="Remove mapping"
+                >Remove</button>
               </div>
-                             <button 
-                 onclick="removeFieldMapping('${mapping.id}')"
-                 data-mapping-id="${mapping.id}"
-                 style="
-                   background: #dc3545;
-                   color: white;
-                   border: none;
-                   padding: 4px 8px;
-                   border-radius: 4px;
-                   font-size: 10px;
-                   cursor: pointer;
-                   flex-shrink: 0;
-                 "
-                 title="Remove mapping"
-               >Remove</button>
             </div>
-          </div>
-        `
-          )
+          `;
+          })
           .join("");
 
         container.innerHTML = mappingsHTML;
+        console.log("✅ Active mappings display updated");
       }
 
       function updateFieldTagStates() {
         const usedFields = new Set(activeMappings.map((m) => m.fieldName));
 
-        console.log(
-          "Updating field tag states for used fields:",
-          Array.from(usedFields)
-        );
+        console.log("🏷️ Updating field tag states:");
+        console.log("📋 Active mappings:", activeMappings);
+        console.log("🎯 Used fields:", Array.from(usedFields));
 
         const fieldTags = document.querySelectorAll(".smart-mapping-field-tag");
-        console.log("Found field tags:", fieldTags.length);
+        console.log("🏷️ Found field tags:", fieldTags.length);
 
+        let markedCount = 0;
         fieldTags.forEach((tag) => {
           const fieldName = tag.dataset.field;
           const isUsed = usedFields.has(fieldName);
+          
+          console.log(`🏷️ Field '${fieldName}': ${isUsed ? '✅ USED' : '⚪ unused'}`);
+          
+          // Update the tag's appearance
           tag.classList.toggle("used", isUsed);
-
+          
+          // FORCE inline styles as backup in case CSS isn't working
           if (isUsed) {
+            tag.style.background = '#e8f5e8';
+            tag.style.borderColor = '#4caf50';
+            tag.style.color = '#2e7d32';
+            tag.style.position = 'relative';
+            tag.style.boxShadow = '0 0 0 1px #4caf50';
+            
+            // Add checkmark via direct style manipulation
+            tag.setAttribute('data-used', 'true');
+            console.log(`✅ Applied inline styles to field '${fieldName}'`);
+            
+            markedCount++;
             console.log(`✅ Marked field '${fieldName}' as used`);
+          } else {
+            // Remove inline styles for unused fields
+            tag.style.background = '';
+            tag.style.borderColor = '';
+            tag.style.color = '';
+            tag.style.position = '';
+            tag.style.boxShadow = '';
+            tag.removeAttribute('data-used');
           }
         });
+
+        console.log(`🎯 Marked ${markedCount} fields as used out of ${fieldTags.length} total`);
       }
 
       function updateMappingStats() {
         const statsContainer = document.getElementById("smartMappingStats");
-        if (!statsContainer) return;
+        if (!statsContainer) {
+          console.log("⚠️ Stats container not found!");
+          return;
+        }
 
         console.log(
-          "Updating mapping stats with active mappings:",
+          "📊 Updating mapping stats with active mappings:",
+          activeMappings.length,
           activeMappings
         );
 
         const activeMappingsCount = activeMappings.length;
         const usedFieldsCount = new Set(activeMappings.map((m) => m.fieldName))
           .size;
-        const replacementsCount = activeMappings.reduce((total, mapping) => {
-          const systemPrompt =
-            document.getElementById("smartMappingSystemPrompt")?.value || "";
-          const userPrompt =
-            document.getElementById("smartMappingUserPrompt")?.value || "";
-          const allText = systemPrompt + " " + userPrompt;
-          const occurrences = allText.split(mapping.placeholder).length - 1;
-          console.log(
-            `Placeholder ${mapping.placeholder} appears ${occurrences} times in prompts`
-          );
-          return total + occurrences;
-        }, 0);
 
-        console.log(
-          `Stats: ${activeMappingsCount} mappings, ${usedFieldsCount} fields used, ${replacementsCount} replacements`
-        );
-
-        // Calculate how many fields are detected in prompts vs mapped
+        // Calculate replacements count
         const systemPrompt =
           document.getElementById("smartMappingSystemPrompt")?.value || "";
         const userPrompt =
           document.getElementById("smartMappingUserPrompt")?.value || "";
         const allPromptText = systemPrompt + " " + userPrompt;
+
+        const replacementsCount = activeMappings.reduce((total, mapping) => {
+          const occurrences = allPromptText.split(mapping.placeholder).length - 1;
+          console.log(
+            `Placeholder ${mapping.placeholder} appears ${occurrences} times in prompts`
+          );
+          return total + occurrences;
+        }, 0);
 
         // Count total placeholders in prompts (both mapped and unmapped)
         const placeholderMatches = allPromptText.match(/\{\{[^}]+\}\}/g) || [];
@@ -1921,9 +2135,10 @@ export default function supernova() {
         const needMappingCount = Math.max(0, totalFieldsDetected - mappedCount);
 
         console.log(
-          `Detected ${totalFieldsDetected} placeholders, ${mappedCount} mapped, ${needMappingCount} need mapping`
+          `📊 Stats calculation: ${totalFieldsDetected} detected, ${mappedCount} mapped, ${needMappingCount} need mapping`
         );
 
+        // Update the display - use "Mapped" to match what user expects to see
         statsContainer.innerHTML = `
           <div class="smart-mapping-stat">
             <div class="smart-mapping-stat-number">${totalFieldsDetected}</div>
@@ -1938,6 +2153,8 @@ export default function supernova() {
             <div class="smart-mapping-stat-label">Need Mapping</div>
           </div>
         `;
+
+        console.log(`✅ Stats updated: detected=${totalFieldsDetected}, mapped=${mappedCount}, need=${needMappingCount}`);
       }
 
       function handleClearAllMappings() {
@@ -2264,22 +2481,44 @@ export default function supernova() {
 
       window.hideFieldSelector = hideFieldSelector;
 
-      // Global function for removing mappings
+      // FIXED: Enhanced removeFieldMapping function with better error handling
       window.removeFieldMapping = function (mappingId) {
-        console.log("Attempting to remove mapping with ID:", mappingId);
-        console.log("Current active mappings:", activeMappings);
+        console.log("🗑️ Attempting to remove mapping with ID:", mappingId);
+        console.log("🗑️ Current active mappings:", activeMappings);
+        console.log("🗑️ Available mapping IDs:", activeMappings.map(m => m.id));
 
-        const mapping = activeMappings.find((m) => m.id === mappingId);
+        // Find the mapping by ID
+        const mappingIndex = activeMappings.findIndex((m) => m.id === mappingId);
+        const mapping = activeMappings[mappingIndex];
+        
         if (!mapping) {
-          console.error("Mapping not found with ID:", mappingId);
-          console.log(
-            "Available mapping IDs:",
-            activeMappings.map((m) => m.id)
+          console.error("❌ Mapping not found with ID:", mappingId);
+          console.log("🔍 Attempting to find by placeholder or fieldName...");
+          
+          // Fallback: Try to find by other properties if ID doesn't match
+          const fallbackMapping = activeMappings.find(m => 
+            m.placeholder && m.placeholder.includes(mappingId.split('_').pop()) // Try last part of ID
           );
+          
+          if (fallbackMapping) {
+            console.log("✅ Found mapping by fallback method:", fallbackMapping);
+            const fallbackIndex = activeMappings.indexOf(fallbackMapping);
+            return removeByIndex(fallbackIndex, fallbackMapping);
+          }
+          
+          // If still not found, show user-friendly message and refresh
+          alert("⚠️ Could not remove mapping. The mapping list will be refreshed.");
+          refreshActiveMappingsDisplay();
           return;
         }
 
-        console.log("Found mapping to remove:", mapping);
+        console.log("✅ Found mapping to remove:", mapping);
+        return removeByIndex(mappingIndex, mapping);
+      };
+
+      // Helper function to actually remove the mapping
+      function removeByIndex(index, mapping) {
+        console.log(`🗑️ Removing mapping at index ${index}:`, mapping);
 
         // Remove placeholder from textarea
         const textarea = document.getElementById(mapping.textareaId);
@@ -2290,25 +2529,30 @@ export default function supernova() {
             mapping.originalText
           );
           textarea.value = newValue;
-          console.log("Updated textarea:", oldValue, "→", newValue);
+          console.log("📝 Updated textarea:", oldValue, "→", newValue);
+        } else {
+          console.warn("⚠️ Textarea not found:", mapping.textareaId);
         }
 
         // Remove from active mappings
-        activeMappings = activeMappings.filter((m) => m.id !== mappingId);
-        console.log("Active mappings after removal:", activeMappings);
+        activeMappings.splice(index, 1);
+        console.log("✅ Active mappings after removal:", activeMappings);
 
-        // Update displays
+        // Update all displays
         updateActiveMappingsDisplay();
         updateFieldTagStates();
         updateMappingStats();
 
+        // Show success message
         updateValidationMessage(`✅ Removed mapping: ${mapping.placeholder}`);
         setTimeout(() => {
           updateValidationMessage(
             "Ready to create field mappings - select text in your prompts"
           );
         }, 2000);
-      };
+
+        return true;
+      }
 
       // ===== END STEP 4 FUNCTIONS =====
       // NEW: Smart Field Mapping Modal Functions
@@ -2754,29 +2998,44 @@ export default function supernova() {
         font-size: 12px;
       }
       
-      /* Field Tag States */
-      .smart-mapping-field-tag.used {
+      /* Field Tag States - ENHANCED with higher specificity */
+      .smart-mapping-field-tag.used,
+      .smart-mapping-field-tags .smart-mapping-field-tag.used {
         background: #e8f5e8 !important;
         border-color: #4caf50 !important;
         color: #2e7d32 !important;
-        position: relative;
+        position: relative !important;
+        box-shadow: 0 0 0 1px #4caf50 !important;
       }
       
-      .smart-mapping-field-tag.used::after {
-        content: '✓';
-        position: absolute;
-        top: -2px;
-        right: -2px;
-        background: #4caf50;
-        color: white;
-        border-radius: 50%;
-        width: 16px;
-        height: 16px;
-        font-size: 10px;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        font-weight: bold;
+      .smart-mapping-field-tag.used::after,
+      .smart-mapping-field-tags .smart-mapping-field-tag.used::after,
+      .smart-mapping-field-tag[data-used="true"]::after {
+        content: '✓' !important;
+        position: absolute !important;
+        top: -4px !important;
+        right: -4px !important;
+        background: #4caf50 !important;
+        color: white !important;
+        border-radius: 50% !important;
+        width: 18px !important;
+        height: 18px !important;
+        font-size: 12px !important;
+        display: flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+        font-weight: bold !important;
+        z-index: 10 !important;
+        border: 2px solid white !important;
+      }
+      
+      /* Additional backup styles using data attribute */
+      .smart-mapping-field-tag[data-used="true"] {
+        background: #e8f5e8 !important;
+        border-color: #4caf50 !important;
+        color: #2e7d32 !important;
+        position: relative !important;
+        box-shadow: 0 0 0 1px #4caf50 !important;
       }
       
       .smart-mapping-field-tag.dragging {
@@ -3528,40 +3787,37 @@ export default function supernova() {
       }
       // ... other modal functions
       function setupSmartFieldMappingEvents() {
-        // Clear all button
-        document
-          .getElementById("smartMappingClearAllBtn")
-          ?.addEventListener("click", handleClearAllMappings);
+        // FIX: Remove existing listeners to prevent accumulation
+        const clearBtn = document.getElementById("smartMappingClearAllBtn");
+        const saveBtn = document.getElementById("smartMappingSaveBtn");
+        const refreshBtn = document.getElementById("smartMappingRefreshBtn");
+        const systemPrompt = document.getElementById("smartMappingSystemPrompt");
+        const userPrompt = document.getElementById("smartMappingUserPrompt");
+        const modal = document.getElementById("smartFieldMappingModal");
 
-        // Save button
-        document
-          .getElementById("smartMappingSaveBtn")
-          ?.addEventListener("click", handleSave);
+        // Remove existing listeners if they exist
+        if (clearBtn && clearBtn.onclick) clearBtn.onclick = null;
+        if (saveBtn && saveBtn.onclick) saveBtn.onclick = null;
+        if (refreshBtn && refreshBtn.onclick) refreshBtn.onclick = null;
 
-        // Refresh button
-        document
-          .getElementById("smartMappingRefreshBtn")
-          ?.addEventListener("click", handleRefreshFields);
+        // Add new listeners
+        clearBtn?.addEventListener("click", handleClearAllMappings);
+        saveBtn?.addEventListener("click", handleSave);
+        refreshBtn?.addEventListener("click", handleRefreshFields);
 
         // Setup text selection handlers
         setupTextSelectionHandlers();
 
         // Prompt text changes
-        document
-          .getElementById("smartMappingSystemPrompt")
-          ?.addEventListener("input", handlePromptChange);
-        document
-          .getElementById("smartMappingUserPrompt")
-          ?.addEventListener("input", handlePromptChange);
+        systemPrompt?.addEventListener("input", handlePromptChange);
+        userPrompt?.addEventListener("input", handlePromptChange);
 
         // Close on overlay click
-        document
-          .getElementById("smartFieldMappingModal")
-          ?.addEventListener("click", function (e) {
-            if (e.target === this) {
-              closeSmartFieldMappingModal();
-            }
-          });
+        modal?.addEventListener("click", function (e) {
+          if (e.target === this) {
+            closeSmartFieldMappingModal();
+          }
+        });
       }
 
       function openSmartFieldMappingModal(data) {
@@ -3625,8 +3881,20 @@ export default function supernova() {
       function closeSmartFieldMappingModal() {
         const modal = document.getElementById("smartFieldMappingModal");
         if (modal) {
+          console.log("🔒 Closing Smart Field Mapping Modal");
+          
           modal.classList.remove("active");
           document.body.style.overflow = "auto";
+          
+          // 🔧 CRITICAL FIX: Don't clear activeMappings here - they should persist!
+          // activeMappings = []; // REMOVED: This was causing the green checkmarks to disappear
+          selectedTextInfo = null;
+          currentFieldSuggestions = [];
+          
+          // Hide field selector popup if open
+          hideFieldSelector();
+          
+          console.log("✅ Modal closed, mappings preserved:", activeMappings.length);
         }
       }
 
@@ -3747,19 +4015,35 @@ export default function supernova() {
           return;
         }
 
-        // 🆕 CHECK MAPPING COMPLETENESS: Show info about active mappings
-        const totalMappings = activeMappings.length;
-        const uniqueFields = new Set(activeMappings.map((m) => m.fieldName))
-          .size;
+        // 🔧 FIXED: Use activeMappings instead of currentFieldSuggestions for validation
+        const totalMappings = activeMappings.length; // This is the correct array to check
+        const uniqueFields = new Set(activeMappings.map((m) => m.fieldName)).size;
 
+        console.log("💾 Save validation:", {
+          totalMappings,
+          uniqueFields,
+          activeMappings: activeMappings,
+          activeMappingsLength: activeMappings.length
+        });
+
+        // 🔧 FIXED: Better validation logic
         if (totalMappings === 0) {
-          const proceed = confirm(
-            `⚠️ No field mappings created yet.\n\nYour prompts will be used as-is without field replacements.\n\nDo you want to save anyway?`
-          );
+          // Only show this warning if there are actually detected fields but no mappings
+          const systemPromptText = systemPrompt || "";
+          const userPromptText = userPrompt || "";
+          const allPromptText = systemPromptText + " " + userPromptText;
+          const detectedPlaceholders = allPromptText.match(/\{\{[^}]+\}\}/g) || [];
+          
+          if (detectedPlaceholders.length > 0) {
+            const proceed = confirm(
+              `⚠️ Found ${detectedPlaceholders.length} field placeholders but no mappings created.\n\nYour prompts will be used as-is without field replacements.\n\nDo you want to save anyway?`
+            );
 
-          if (!proceed) {
-            return;
+            if (!proceed) {
+              return;
+            }
           }
+          // If no placeholders detected at all, just proceed silently
         }
 
         // 🔧 IMPROVED: Use localStorage for session persistence + direct property update
@@ -3774,6 +4058,8 @@ export default function supernova() {
             confidence: 100, // Select Mode mappings are always 100% confident
             detectionMethod: "select_mode",
           }));
+
+          console.log("💾 Saving field mappings data:", fieldMappingsData);
 
           // Save to localStorage for session persistence
           const saveData = {
@@ -3800,6 +4086,7 @@ export default function supernova() {
           handleSaveSuccess(totalMappings, uniqueFields);
 
           console.log("✅ Configuration saved to localStorage and memory");
+          console.log("✅ Saved mappings:", fieldMappingsData.length);
 
           // Inform user about persistence
           setTimeout(() => {
@@ -3807,7 +4094,7 @@ export default function supernova() {
               "smartMappingValidation"
             );
             if (validationDiv) {
-              validationDiv.innerHTML = `💾 Saved to session! Settings will persist until browser refresh.`;
+              validationDiv.innerHTML = `💾 Saved ${totalMappings} mappings to session! Settings will persist until browser refresh.`;
               validationDiv.style.color = "#2196f3";
             }
           }, 2000);
@@ -3902,12 +4189,13 @@ export default function supernova() {
         console.log("Loading saved mappings:", savedMappings);
 
         if (savedMappings.length > 0) {
-          // Convert saved mappings to active mappings format
+          // Convert saved mappings to active mappings format with proper ID generation
           activeMappings = savedMappings.map((saved, index) => {
+            // Generate a unique ID that includes timestamp and index for better uniqueness
+            const uniqueId = `mapping_${Date.now()}_${index}_${Math.floor(Math.random() * 10000)}`;
+            
             const mapping = {
-              id: `mapping_${Date.now()}_${index}_${Math.floor(
-                Math.random() * 10000
-              )}`,
+              id: uniqueId,
               placeholder: saved.placeholder,
               fieldName: saved.mappedField || saved.fieldName,
               fieldType: saved.fieldType || "dimension", // Default if not specified
@@ -3919,34 +4207,32 @@ export default function supernova() {
                   : "smartMappingSystemPrompt",
             };
             console.log(
-              `Converted saved mapping ${index}:`,
-              saved,
-              "→",
-              mapping
+              `✅ Converted saved mapping ${index}:`, 
+              `${saved.placeholder} → ID: ${uniqueId}`
             );
             return mapping;
           });
-          console.log("Final active mappings:", activeMappings);
+          console.log("✅ Final active mappings with IDs:", activeMappings.map(m => ({ id: m.id, placeholder: m.placeholder })));
         } else {
           console.log("No saved mappings found to convert");
         }
 
         setTimeout(() => {
-          console.log("Modal opened with active mappings:", activeMappings);
+          console.log("⚙️ Setting up modal with active mappings:", activeMappings.length);
 
           // Setup all event handlers
           setupTextSelectionHandlers();
           setupDragDropHandlers();
 
-          // Update all displays
+          // 🔧 CRITICAL FIX: Update all displays in the correct order
           updateActiveMappingsDisplay();
-          updateFieldTagStates();
-          updateMappingStats();
+          updateFieldTagStates(); // This should now show green checkmarks
+          updateMappingStats(); // This should show correct numbers
 
           // Initial field detection to catch any existing placeholders
           detectAndDisplayFields();
 
-          // Show status if loaded from storage
+          // Show status based on loaded mappings
           if (loadedFromStorage) {
             updateValidationMessage(
               "📂 Previous session data loaded automatically"
@@ -3966,7 +4252,9 @@ export default function supernova() {
               );
             }, 3000);
           }
-        }, 200);
+
+          console.log("✅ Modal setup complete");
+        }, 300); // Increased delay to ensure everything is ready
 
         // Show modal
         modal.classList.add("active");
@@ -4946,8 +5234,13 @@ export default function supernova() {
                 fullPrompt = fullPrompt.substring(0, 45000) + "\n\n[Note: Content truncated due to size limits]";
               }
 
-              // Step 6: Build and validate expression
-              const expression = buildLLMExpression(fullPrompt, props);
+                      // Step 6: Build and validate expression
+        const expression = buildLLMExpression(fullPrompt, props);
+        
+        // FIX: Validate expression size to prevent browser crashes
+        if (expression.length > 1000000) { // 1MB limit
+          throw new Error("Expression too large (over 1MB). Please reduce prompt or data size.");
+        }
 
               // Step 7: Execute with timeout
               console.log("🚀 Executing expression...");
@@ -4985,7 +5278,7 @@ export default function supernova() {
               // Step 9: Display result
               if (responseDiv) {
                 responseDiv.innerHTML = `
-                  <div style="word-wrap: break-word; line-height: 1.6; text-align: left; padding: 12px; overflow-y: auto; height: 220px; scrollbar-width: thin; scrollbar-color: #9ca3af #f1f3f4;" class="analysis-content">
+                  <div style="word-wrap: break-word; line-height: 1.6; text-align: left; padding: 12px; overflow-y: auto; height: 300px; scrollbar-width: thin; scrollbar-color: #9ca3af #f1f3f4;" class="analysis-content">
                     <div style="white-space: pre-wrap;">${responseText.replace(/\n/g, "<br>")}</div>
                   </div>
                 `;
@@ -5058,8 +5351,10 @@ export default function supernova() {
             };
           }
 
-          // NEW: Add modal to the page
-          createSmartFieldMappingModal();
+          // NEW: Add modal to the page - FIX: Prevent duplicate creation
+          if (!document.getElementById("smartFieldMappingModal")) {
+            createSmartFieldMappingModal();
+          }
         };
 
         render();
