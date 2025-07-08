@@ -4292,10 +4292,12 @@ export default function supernova() {
         
         // Step 3: Build config with safe numeric values
         const temperature = Math.max(0, Math.min(2, Number(props.temperature || 0.7)));
+        const topK = Math.max(1, Math.min(1000, Number(props.topK || 250)));
+        const topP = Math.max(0, Math.min(1, Number(props.topP || 1)));
         const maxTokens = Math.max(1, Math.min(4000, Number(props.maxTokens || 1000)));
         
-        // Step 4: Use the simplest possible approach that works
-        const configStr = `{"RequestType":"endpoint","endpoint":{"connectionname":"${connectionName.replace(/"/g, '\\"')}","column":"text","parameters":{"temperature":${temperature},"max_tokens":${maxTokens}}}}`;
+        // Step 4: Use the simplest possible approach that works - include all parameters
+        const configStr = `{"RequestType":"endpoint","endpoint":{"connectionname":"${connectionName.replace(/"/g, '\\"')}","column":"text","parameters":{"temperature":${temperature},"Top K":${topK},"Top P":${topP},"max_tokens":${maxTokens}}}}`;
         
         // Step 5: Use double single quotes for Qlik string escaping
         const escapedPrompt = cleanPrompt.replace(/'/g, "''");
