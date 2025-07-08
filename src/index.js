@@ -701,16 +701,17 @@ export default function supernova() {
       // Simple placeholder detection for {{fieldName}} syntax only
       function detectPlaceholdersInPrompts(systemPrompt, userPrompt) {
         const allText = (systemPrompt || "") + " " + (userPrompt || "");
-        
+
         // Only detect traditional {{fieldName}} placeholders
         const traditionalMatches = [...allText.matchAll(/\{\{([^}]+)\}\}/g)];
         const detectedFields = traditionalMatches.map((match) => ({
           placeholder: match[0], // Full {{fieldName}}
           fieldName: match[1].trim(), // Just fieldName
           position: match.index,
-          source: systemPrompt && systemPrompt.includes(match[0]) ? "system" : "user",
+          source:
+            systemPrompt && systemPrompt.includes(match[0]) ? "system" : "user",
           detectionMethod: "traditional",
-          autoMappable: true
+          autoMappable: true,
         }));
 
         return detectedFields;
@@ -718,21 +719,24 @@ export default function supernova() {
 
       // Get available fields from current layout
       function getAvailableFields(layout) {
-        console.log('🔍 getAvailableFields called with layout:', layout);
+        console.log("🔍 getAvailableFields called with layout:", layout);
         const dimensions = layout?.qHyperCube?.qDimensionInfo || [];
         const measures = layout?.qHyperCube?.qMeasureInfo || [];
 
-        console.log('🔍 Raw dimensions:', dimensions);
-        console.log('🔍 Raw measures:', measures);
+        console.log("🔍 Raw dimensions:", dimensions);
+        console.log("🔍 Raw measures:", measures);
 
         const result = {
           dimensions: dimensions.map((dim) => {
             // Use the actual field name from the expression, not the label
-            const actualFieldName = dim.qGroupFieldDefs?.[0] || dim.qFallbackTitle;
+            const actualFieldName =
+              dim.qGroupFieldDefs?.[0] || dim.qFallbackTitle;
             const displayName = dim.qFallbackTitle;
-            
-            console.log(`Dimension: "${displayName}" → actual field: "${actualFieldName}"`);
-            
+
+            console.log(
+              `Dimension: "${displayName}" → actual field: "${actualFieldName}"`
+            );
+
             return {
               name: actualFieldName, // Use actual field name for LLM
               displayName: displayName, // Keep display name for UI
@@ -744,7 +748,7 @@ export default function supernova() {
             // For measures, extract the actual field name from the expression
             const expression = measure.qDef?.qDef || measure.qFallbackTitle;
             const displayName = measure.qFallbackTitle;
-            
+
             // Try to extract field name from expressions like Sum([Field Name])
             let actualFieldName = expression;
             const fieldMatch = expression.match(/\[([^\]]+)\]/);
@@ -752,14 +756,18 @@ export default function supernova() {
               actualFieldName = fieldMatch[1];
             } else {
               // If no brackets, try to extract from common aggregation functions
-              const aggMatch = expression.match(/(?:sum|avg|count|max|min|total)\s*\(\s*([^)]+)\s*\)/i);
+              const aggMatch = expression.match(
+                /(?:sum|avg|count|max|min|total)\s*\(\s*([^)]+)\s*\)/i
+              );
               if (aggMatch) {
-                actualFieldName = aggMatch[1].replace(/['"]/g, '').trim();
+                actualFieldName = aggMatch[1].replace(/['"]/g, "").trim();
               }
             }
-            
-            console.log(`Measure: "${displayName}" → expression: "${expression}" → actual field: "${actualFieldName}"`);
-            
+
+            console.log(
+              `Measure: "${displayName}" → expression: "${expression}" → actual field: "${actualFieldName}"`
+            );
+
             return {
               name: actualFieldName, // Use actual field name for LLM
               displayName: displayName, // Keep display name for UI
@@ -769,7 +777,7 @@ export default function supernova() {
           }),
         };
 
-        console.log('🔍 Processed result with actual field names:', result);
+        console.log("🔍 Processed result with actual field names:", result);
         return result;
       }
 
@@ -783,8 +791,10 @@ export default function supernova() {
           // For intelligent detection, we already know the field exists
           if (detected.detectionMethod === "intelligent") {
             // Find the exact field match
-            const exactMatch = [...availableFields.dimensions, ...availableFields.measures]
-              .find(field => field.name.toLowerCase() === fieldName);
+            const exactMatch = [
+              ...availableFields.dimensions,
+              ...availableFields.measures,
+            ].find((field) => field.name.toLowerCase() === fieldName);
 
             suggestions.push({
               placeholder: detected.placeholder,
@@ -796,7 +806,7 @@ export default function supernova() {
               detectionMethod: detected.detectionMethod,
               suggestedReplacement: detected.suggestedReplacement,
               autoMappable: detected.autoMappable,
-              keepAsText: false // Option to keep as normal text
+              keepAsText: false, // Option to keep as normal text
             });
             return;
           }
@@ -844,7 +854,7 @@ export default function supernova() {
             mappedField: null, // Will be set by user or auto-mapping
             detectionMethod: detected.detectionMethod || "traditional",
             autoMappable: true,
-            keepAsText: false
+            keepAsText: false,
           });
         });
 
@@ -871,10 +881,6 @@ export default function supernova() {
 
         // Update available fields display
         updateAvailableFieldsDisplay(availableFields);
-
-
-
-
 
         return suggestions;
       }
@@ -989,7 +995,12 @@ export default function supernova() {
                   <div style="font-size: 10px; color: #6c757d;">
                     ${
                       suggestion.detectionMethod === "intelligent"
-                        ? `Smart detection: Found "${suggestion.fieldName}" field → ${suggestion.suggestedReplacement || suggestion.placeholder}`
+                        ? `Smart detection: Found "${
+                            suggestion.fieldName
+                          }" field → ${
+                            suggestion.suggestedReplacement ||
+                            suggestion.placeholder
+                          }`
                         : suggestion.suggestedField
                         ? `Auto-suggested: ${suggestion.suggestedField.name} (${suggestion.suggestedField.type})`
                         : "No auto-mapping suggestion"
@@ -1022,7 +1033,9 @@ export default function supernova() {
                         onclick="acceptFieldMapping(${index})"
                         style="
                           flex: 1;
-                          background: ${suggestion.mappedField ? '#28a745' : '#007bff'};
+                          background: ${
+                            suggestion.mappedField ? "#28a745" : "#007bff"
+                          };
                           color: white;
                           border: none;
                           padding: 6px 8px;
@@ -1033,14 +1046,20 @@ export default function supernova() {
                         "
                         title="Map to ${suggestion.fieldName} field"
                       >
-                        ${suggestion.mappedField ? '✓ Mapped to Field' : '🔗 Map to Field'}
+                        ${
+                          suggestion.mappedField
+                            ? "✓ Mapped to Field"
+                            : "🔗 Map to Field"
+                        }
                       </button>
                       <button 
                         onclick="keepAsText(${index})"
                         style="
                           flex: 1;
-                          background: ${suggestion.keepAsText ? '#6c757d' : '#f8f9fa'};
-                          color: ${suggestion.keepAsText ? 'white' : '#6c757d'};
+                          background: ${
+                            suggestion.keepAsText ? "#6c757d" : "#f8f9fa"
+                          };
+                          color: ${suggestion.keepAsText ? "white" : "#6c757d"};
                           border: 1px solid #dee2e6;
                           padding: 6px 8px;
                           border-radius: 4px;
@@ -1050,7 +1069,11 @@ export default function supernova() {
                         "
                         title="Keep as normal text"
                       >
-                        ${suggestion.keepAsText ? '✓ Keep as Text' : '📝 Keep as Text'}
+                        ${
+                          suggestion.keepAsText
+                            ? "✓ Keep as Text"
+                            : "📝 Keep as Text"
+                        }
                       </button>
                     </div>
                   </div>
@@ -1060,7 +1083,11 @@ export default function supernova() {
                 
                 <div style="display: flex; align-items: center; gap: 8px; width: 100%; box-sizing: border-box;">
                   <span style="font-size: 10px; color: #6c757d; font-weight: 600; flex-shrink: 0; white-space: nowrap;">
-                    ${suggestion.detectionMethod === "intelligent" ? "Override:" : "Map to:"}
+                    ${
+                      suggestion.detectionMethod === "intelligent"
+                        ? "Override:"
+                        : "Map to:"
+                    }
                   </span>
                   <select 
                     id="fieldMapping_${index}" 
@@ -1076,7 +1103,11 @@ export default function supernova() {
                       background: white;
                       cursor: pointer;
                       max-width: calc(100% - 80px);
-                      ${suggestion.detectionMethod === "intelligent" ? 'opacity: 0.7;' : ''}
+                      ${
+                        suggestion.detectionMethod === "intelligent"
+                          ? "opacity: 0.7;"
+                          : ""
+                      }
                     "
                   >
                     <option value="">-- Select Field --</option>
@@ -1279,9 +1310,17 @@ export default function supernova() {
               <div class="smart-mapping-field-tag dimension" 
                    data-field="${dim.name}" 
                    data-type="dimension"
-                   title="Field: ${dim.name}${dim.displayName !== dim.name ? '\nLabel: ' + dim.displayName : ''}">
+                   title="Field: ${dim.name}${
+                  dim.displayName !== dim.name
+                    ? "\nLabel: " + dim.displayName
+                    : ""
+                }">
                 ${dim.displayName || dim.name}
-                ${dim.displayName !== dim.name ? `<br><small style="opacity: 0.7;">${dim.name}</small>` : ''}
+                ${
+                  dim.displayName !== dim.name
+                    ? `<br><small style="opacity: 0.7;">${dim.name}</small>`
+                    : ""
+                }
               </div>
             `
               )
@@ -1308,9 +1347,17 @@ export default function supernova() {
               <div class="smart-mapping-field-tag measure" 
                    data-field="${measure.name}" 
                    data-type="measure"
-                   title="Field: ${measure.name}${measure.displayName !== measure.name ? '\nLabel: ' + measure.displayName : ''}">
+                   title="Field: ${measure.name}${
+                  measure.displayName !== measure.name
+                    ? "\nLabel: " + measure.displayName
+                    : ""
+                }">
                 ${measure.displayName || measure.name}
-                ${measure.displayName !== measure.name ? `<br><small style="opacity: 0.7;">${measure.name}</small>` : ''}
+                ${
+                  measure.displayName !== measure.name
+                    ? `<br><small style="opacity: 0.7;">${measure.name}</small>`
+                    : ""
+                }
               </div>
             `
               )
@@ -1319,11 +1366,9 @@ export default function supernova() {
         }
       }
 
-
-
       // Store current suggestions globally for access by other functions
       let currentFieldSuggestions = [];
-      
+
       // Global state for Select Mode workflow
       let currentMappingMode = "select";
       let activeMappings = [];
@@ -1331,144 +1376,180 @@ export default function supernova() {
       let selectedTextInfo = null;
 
       // ===== SELECT MODE WORKFLOW FUNCTIONS =====
-      
+
       function setMappingMode(mode) {
         currentMappingMode = mode;
-        
+
         // Update mode buttons
-        document.getElementById("selectModeBtn")?.classList.toggle("active", mode === "select");
-        document.getElementById("dragModeBtn")?.classList.toggle("active", mode === "drag");
-        
+        document
+          .getElementById("selectModeBtn")
+          ?.classList.toggle("active", mode === "select");
+        document
+          .getElementById("dragModeBtn")
+          ?.classList.toggle("active", mode === "drag");
+
         // Update textarea classes
         const textareas = document.querySelectorAll(".smart-mapping-textarea");
-        textareas.forEach(textarea => {
+        textareas.forEach((textarea) => {
           textarea.classList.toggle("select-mode", mode === "select");
         });
-        
+
         // Update mode indicators
-        const selectText = mode === "select" ? "Select text, then drag fields" : "Drag fields to create {{placeholders}}";
-        document.getElementById("systemPromptModeText").textContent = selectText;
+        const selectText =
+          mode === "select"
+            ? "Select text, then drag fields"
+            : "Drag fields to create {{placeholders}}";
+        document.getElementById("systemPromptModeText").textContent =
+          selectText;
         document.getElementById("userPromptModeText").textContent = selectText;
-        
+
         // Update validation message
         const validationDiv = document.getElementById("smartMappingValidation");
         if (validationDiv) {
-          validationDiv.textContent = mode === "select" 
-            ? "Ready to create field mappings - select text and drag fields"
-            : "Ready to create field mappings - drag fields to prompts";
+          validationDiv.textContent =
+            mode === "select"
+              ? "Ready to create field mappings - select text and drag fields"
+              : "Ready to create field mappings - drag fields to prompts";
         }
       }
-      
+
       function setupTextSelectionHandlers() {
         const textareas = document.querySelectorAll(".smart-mapping-textarea");
-        
-        textareas.forEach(textarea => {
+
+        textareas.forEach((textarea) => {
           // Remove existing listeners to avoid duplicates
           textarea.removeEventListener("mouseup", handleTextSelection);
           textarea.removeEventListener("keyup", handleTextSelection);
           textarea.removeEventListener("input", handlePromptChange);
           textarea.removeEventListener("paste", handlePasteEvent);
-          
+
           // Handle text selection
           textarea.addEventListener("mouseup", handleTextSelection);
           textarea.addEventListener("keyup", handleTextSelection);
-          
+
           // Handle text changes (typing, pasting, etc.)
           textarea.addEventListener("input", handlePromptChange);
-          
+
           // Handle paste events specifically
           textarea.addEventListener("paste", handlePasteEvent);
-          
+
           // Make textareas selectable
           textarea.classList.add("select-mode");
-          
+
           console.log(`Setup handlers for textarea: ${textarea.id}`);
         });
       }
-      
+
       function handlePasteEvent(event) {
         console.log("Paste event detected");
-        
+
         // Use setTimeout to ensure the pasted content is in the DOM
         setTimeout(() => {
           console.log("Processing pasted content...");
-          
+
           // Check if pasted content contains placeholders we can restore mappings for
           restoreMappingsFromText();
-          
+
           // Trigger field detection after paste
           detectAndDisplayFields();
-          
+
           // Update all displays
           updateActiveMappingsDisplay();
           updateFieldTagStates();
           updateMappingStats();
-          
+
           console.log("Paste processing complete");
         }, 100);
       }
-      
+
       function restoreMappingsFromText() {
-        const systemPrompt = document.getElementById("smartMappingSystemPrompt")?.value || "";
-        const userPrompt = document.getElementById("smartMappingUserPrompt")?.value || "";
+        const systemPrompt =
+          document.getElementById("smartMappingSystemPrompt")?.value || "";
+        const userPrompt =
+          document.getElementById("smartMappingUserPrompt")?.value || "";
         const allPromptText = systemPrompt + " " + userPrompt;
-        
+
         // Find all {{PLACEHOLDER}} patterns in the text
-        const placeholderMatches = [...allPromptText.matchAll(/\{\{([^}]+)\}\}/g)];
-        
-        console.log("Found placeholders in pasted text:", placeholderMatches.length);
-        
-        placeholderMatches.forEach(match => {
+        const placeholderMatches = [
+          ...allPromptText.matchAll(/\{\{([^}]+)\}\}/g),
+        ];
+
+        console.log(
+          "Found placeholders in pasted text:",
+          placeholderMatches.length
+        );
+
+        placeholderMatches.forEach((match) => {
           const placeholder = match[0]; // Full {{PLACEHOLDER}}
           const placeholderName = match[1]; // Just PLACEHOLDER
-          
+
           // Check if we already have a mapping for this placeholder
-          const existingMapping = activeMappings.find(m => m.placeholder === placeholder);
-          
+          const existingMapping = activeMappings.find(
+            (m) => m.placeholder === placeholder
+          );
+
           if (!existingMapping) {
             console.log(`Trying to restore mapping for: ${placeholder}`);
-            
+
             // Try to find a matching field for this placeholder
             const availableFields = getAvailableFields(layout);
-            const allFields = [...availableFields.dimensions, ...availableFields.measures];
-            
+            const allFields = [
+              ...availableFields.dimensions,
+              ...availableFields.measures,
+            ];
+
             // Look for field that matches the placeholder name
-            const matchingField = allFields.find(field => {
-              const fieldNameNormalized = field.name.toUpperCase().replace(/[^A-Z0-9]/g, "_");
-              const displayNameNormalized = (field.displayName || field.name).toUpperCase().replace(/[^A-Z0-9]/g, "_");
-              return fieldNameNormalized === placeholderName || displayNameNormalized === placeholderName;
+            const matchingField = allFields.find((field) => {
+              const fieldNameNormalized = field.name
+                .toUpperCase()
+                .replace(/[^A-Z0-9]/g, "_");
+              const displayNameNormalized = (field.displayName || field.name)
+                .toUpperCase()
+                .replace(/[^A-Z0-9]/g, "_");
+              return (
+                fieldNameNormalized === placeholderName ||
+                displayNameNormalized === placeholderName
+              );
             });
-            
+
             if (matchingField) {
-              console.log(`Auto-restoring mapping: ${placeholder} → ${matchingField.name}`);
-              
+              console.log(
+                `Auto-restoring mapping: ${placeholder} → ${matchingField.name}`
+              );
+
               // Create a new mapping
               const mapping = {
-                id: `mapping_${Date.now()}_${Math.floor(Math.random() * 10000)}`,
+                id: `mapping_${Date.now()}_${Math.floor(
+                  Math.random() * 10000
+                )}`,
                 placeholder: placeholder,
                 fieldName: matchingField.name,
                 fieldType: matchingField.type,
                 originalText: placeholderName, // Use placeholder name as original text
                 source: systemPrompt.includes(placeholder) ? "system" : "user",
-                textareaId: systemPrompt.includes(placeholder) ? "smartMappingSystemPrompt" : "smartMappingUserPrompt"
+                textareaId: systemPrompt.includes(placeholder)
+                  ? "smartMappingSystemPrompt"
+                  : "smartMappingUserPrompt",
               };
-              
+
               activeMappings.push(mapping);
               console.log("Restored mapping:", mapping);
             } else {
-              console.log(`No matching field found for placeholder: ${placeholder}`);
+              console.log(
+                `No matching field found for placeholder: ${placeholder}`
+              );
             }
           }
         });
       }
-      
+
       function handleTextSelection(event) {
         const textarea = event.target;
         const selection = window.getSelection();
         const selectedText = selection.toString().trim();
-        
+
         console.log("Text selection event - selected text:", selectedText);
-        
+
         if (selectedText && selectedText.length > 0) {
           // Store selection info
           selectedTextInfo = {
@@ -1476,153 +1557,188 @@ export default function supernova() {
             start: textarea.selectionStart,
             end: textarea.selectionEnd,
             textarea: textarea,
-            textareaId: textarea.id
+            textareaId: textarea.id,
           };
-          
+
           // Visual feedback
           console.log("Stored selection info:", selectedTextInfo);
           textarea.classList.add("has-selection");
-          
+
           // Show field selector popup
           showFieldSelector(selectedText);
-          
-          updateValidationMessage(`Selected: "${selectedText}" - choose a field to map it to`);
+
+          updateValidationMessage(
+            `Selected: "${selectedText}" - choose a field to map it to`
+          );
         } else {
           selectedTextInfo = null;
           // Remove selection class from all textareas
-          document.querySelectorAll(".smart-mapping-textarea").forEach(ta => {
+          document.querySelectorAll(".smart-mapping-textarea").forEach((ta) => {
             ta.classList.remove("has-selection");
           });
           hideFieldSelector();
-          updateValidationMessage("Ready to create field mappings - select text in your prompts");
+          updateValidationMessage(
+            "Ready to create field mappings - select text in your prompts"
+          );
         }
       }
-      
+
       function setupDragDropHandlers() {
         // Use setTimeout to ensure DOM is ready
         setTimeout(() => {
-          const fieldTags = document.querySelectorAll(".smart-mapping-field-tag");
-          console.log("Setting up drag handlers for", fieldTags.length, "field tags");
-          
-          fieldTags.forEach(tag => {
+          const fieldTags = document.querySelectorAll(
+            ".smart-mapping-field-tag"
+          );
+          console.log(
+            "Setting up drag handlers for",
+            fieldTags.length,
+            "field tags"
+          );
+
+          fieldTags.forEach((tag) => {
             tag.draggable = true;
             tag.style.cursor = "grab";
-            
+
             // Remove existing listeners to avoid duplicates
             tag.removeEventListener("dragstart", handleFieldDragStart);
             tag.removeEventListener("dragend", handleFieldDragEnd);
-            
+
             // Add new listeners
             tag.addEventListener("dragstart", handleFieldDragStart);
             tag.addEventListener("dragend", handleFieldDragEnd);
-            
+
             // Add click handler as fallback
-            tag.addEventListener("click", function(e) {
+            tag.addEventListener("click", function (e) {
               console.log("Field tag clicked:", this.dataset.field);
               if (selectedTextInfo) {
                 console.log("Creating mapping via click");
-                createFieldMapping(this.dataset.field, this.dataset.type, selectedTextInfo);
+                createFieldMapping(
+                  this.dataset.field,
+                  this.dataset.type,
+                  selectedTextInfo
+                );
               } else {
                 console.log("No text selected - please select text first");
-                updateValidationMessage("Please select text in the prompt first, then click a field");
+                updateValidationMessage(
+                  "Please select text in the prompt first, then click a field"
+                );
                 setTimeout(() => {
-                  updateValidationMessage("Ready to create field mappings - select text and drag fields");
+                  updateValidationMessage(
+                    "Ready to create field mappings - select text and drag fields"
+                  );
                 }, 2000);
               }
             });
-            
+
             // Add visual feedback for draggable items
-            tag.addEventListener("mousedown", function() {
+            tag.addEventListener("mousedown", function () {
               this.style.cursor = "grabbing";
             });
-            
-            tag.addEventListener("mouseup", function() {
+
+            tag.addEventListener("mouseup", function () {
               this.style.cursor = "grab";
             });
           });
         }, 100);
       }
-      
+
       function handleFieldDragStart(event) {
         console.log("Drag start triggered");
         const fieldTag = event.target;
         const fieldName = fieldTag.dataset.field;
         const fieldType = fieldTag.dataset.type;
-        
+
         console.log("Dragging field:", fieldName, "type:", fieldType);
         console.log("Selected text info:", selectedTextInfo);
-        
+
         // Store drag data
         event.dataTransfer.setData("text/plain", fieldName);
         event.dataTransfer.setData("application/x-field-name", fieldName);
         event.dataTransfer.setData("application/x-field-type", fieldType);
-        
+
         // Visual feedback
         fieldTag.classList.add("dragging");
-        
+
         // Show drop zones if in select mode and text is selected
         if (currentMappingMode === "select" && selectedTextInfo) {
           console.log("Showing drop zones for selected text");
           showDropZones();
         } else {
-          console.log("Not showing drop zones - mode:", currentMappingMode, "selected:", !!selectedTextInfo);
+          console.log(
+            "Not showing drop zones - mode:",
+            currentMappingMode,
+            "selected:",
+            !!selectedTextInfo
+          );
         }
       }
-      
+
       function handleFieldDragEnd(event) {
         const fieldTag = event.target;
         fieldTag.classList.remove("dragging");
         hideDropZones();
       }
-      
+
       function handleTextareaDragOver(event) {
         if (currentMappingMode !== "select" || !selectedTextInfo) return;
-        
+
         event.preventDefault();
         event.dataTransfer.dropEffect = "copy";
-        
+
         const textarea = event.target;
         textarea.classList.add("drag-over");
       }
-      
+
       function handleTextareaDragLeave(event) {
         const textarea = event.target;
         textarea.classList.remove("drag-over");
       }
-      
+
       function handleTextareaDrop(event) {
         event.preventDefault();
-        
+
         const textarea = event.target;
         textarea.classList.remove("drag-over");
-        
+
         if (currentMappingMode !== "select" || !selectedTextInfo) return;
-        
-        const fieldName = event.dataTransfer.getData("application/x-field-name");
-        const fieldType = event.dataTransfer.getData("application/x-field-type");
-        
-        if (fieldName && selectedTextInfo && selectedTextInfo.textarea === textarea) {
+
+        const fieldName = event.dataTransfer.getData(
+          "application/x-field-name"
+        );
+        const fieldType = event.dataTransfer.getData(
+          "application/x-field-type"
+        );
+
+        if (
+          fieldName &&
+          selectedTextInfo &&
+          selectedTextInfo.textarea === textarea
+        ) {
           createFieldMapping(fieldName, fieldType, selectedTextInfo);
         }
       }
-      
+
       function createFieldMapping(fieldName, fieldType, textInfo) {
         // Generate placeholder name from the actual field name
-        const placeholderName = fieldName.toUpperCase().replace(/[^A-Z0-9]/g, "_");
+        const placeholderName = fieldName
+          .toUpperCase()
+          .replace(/[^A-Z0-9]/g, "_");
         const placeholder = `{{${placeholderName}}}`;
-        
-        console.log(`Creating field mapping: "${textInfo.text}" → ${placeholder} (actual field: ${fieldName})`);
-        
+
+        console.log(
+          `Creating field mapping: "${textInfo.text}" → ${placeholder} (actual field: ${fieldName})`
+        );
+
         // Replace selected text with placeholder
         const textarea = textInfo.textarea;
         const currentValue = textarea.value;
-        const newValue = 
-          currentValue.substring(0, textInfo.start) + 
-          placeholder + 
+        const newValue =
+          currentValue.substring(0, textInfo.start) +
+          placeholder +
           currentValue.substring(textInfo.end);
-        
+
         textarea.value = newValue;
-        
+
         // Create mapping object with unique ID - store the actual field name
         const mapping = {
           id: `mapping_${Date.now()}_${Math.floor(Math.random() * 10000)}`,
@@ -1630,35 +1746,42 @@ export default function supernova() {
           fieldName: fieldName, // This is the actual field name for LLM
           fieldType: fieldType,
           originalText: textInfo.text,
-          source: textInfo.textareaId === "smartMappingSystemPrompt" ? "system" : "user",
-          textareaId: textInfo.textareaId
+          source:
+            textInfo.textareaId === "smartMappingSystemPrompt"
+              ? "system"
+              : "user",
+          textareaId: textInfo.textareaId,
         };
-        
+
         console.log("Created mapping object:", mapping);
-        
+
         // Add to active mappings
         activeMappings.push(mapping);
-        
+
         // Update displays
         updateActiveMappingsDisplay();
         updateFieldTagStates();
         updateMappingStats();
-        
+
         // Clear selection
         selectedTextInfo = null;
-        
+
         // Success feedback
-        updateValidationMessage(`✅ Created mapping: "${textInfo.text}" → {{${placeholderName}}} (field: ${fieldName})`);
-        
+        updateValidationMessage(
+          `✅ Created mapping: "${textInfo.text}" → {{${placeholderName}}} (field: ${fieldName})`
+        );
+
         setTimeout(() => {
-          updateValidationMessage("Ready to create field mappings - select text in your prompts");
+          updateValidationMessage(
+            "Ready to create field mappings - select text in your prompts"
+          );
         }, 3000);
       }
-      
+
       function updateActiveMappingsDisplay() {
         const container = document.getElementById("smartMappingActiveList");
         if (!container) return;
-        
+
         if (activeMappings.length === 0) {
           container.innerHTML = `
             <div class="empty-mappings-state">
@@ -1673,8 +1796,10 @@ export default function supernova() {
           `;
           return;
         }
-        
-        const mappingsHTML = activeMappings.map(mapping => `
+
+        const mappingsHTML = activeMappings
+          .map(
+            (mapping) => `
           <div class="smart-mapping-active-mapping" style="
             background: white;
             border: 1px solid #e8f5e8;
@@ -1688,8 +1813,12 @@ export default function supernova() {
                 <div style="font-weight: 600; font-size: 12px; color: #2e7d32; margin-bottom: 4px;">
                   ${mapping.placeholder}
                   <span style="
-                    background: ${mapping.source === "system" ? "#e3f2fd" : "#fff3e0"};
-                    color: ${mapping.source === "system" ? "#1565c0" : "#ef6c00"};
+                    background: ${
+                      mapping.source === "system" ? "#e3f2fd" : "#fff3e0"
+                    };
+                    color: ${
+                      mapping.source === "system" ? "#1565c0" : "#ef6c00"
+                    };
                     padding: 2px 6px;
                     border-radius: 10px;
                     font-size: 9px;
@@ -1720,62 +1849,81 @@ export default function supernova() {
                >Remove</button>
             </div>
           </div>
-        `).join("");
-        
+        `
+          )
+          .join("");
+
         container.innerHTML = mappingsHTML;
       }
-      
+
       function updateFieldTagStates() {
-        const usedFields = new Set(activeMappings.map(m => m.fieldName));
-        
-        console.log("Updating field tag states for used fields:", Array.from(usedFields));
-        
+        const usedFields = new Set(activeMappings.map((m) => m.fieldName));
+
+        console.log(
+          "Updating field tag states for used fields:",
+          Array.from(usedFields)
+        );
+
         const fieldTags = document.querySelectorAll(".smart-mapping-field-tag");
         console.log("Found field tags:", fieldTags.length);
-        
-        fieldTags.forEach(tag => {
+
+        fieldTags.forEach((tag) => {
           const fieldName = tag.dataset.field;
           const isUsed = usedFields.has(fieldName);
           tag.classList.toggle("used", isUsed);
-          
+
           if (isUsed) {
             console.log(`✅ Marked field '${fieldName}' as used`);
           }
         });
       }
-      
+
       function updateMappingStats() {
         const statsContainer = document.getElementById("smartMappingStats");
         if (!statsContainer) return;
-        
-        console.log("Updating mapping stats with active mappings:", activeMappings);
-        
+
+        console.log(
+          "Updating mapping stats with active mappings:",
+          activeMappings
+        );
+
         const activeMappingsCount = activeMappings.length;
-        const usedFieldsCount = new Set(activeMappings.map(m => m.fieldName)).size;
+        const usedFieldsCount = new Set(activeMappings.map((m) => m.fieldName))
+          .size;
         const replacementsCount = activeMappings.reduce((total, mapping) => {
-          const systemPrompt = document.getElementById("smartMappingSystemPrompt")?.value || "";
-          const userPrompt = document.getElementById("smartMappingUserPrompt")?.value || "";
+          const systemPrompt =
+            document.getElementById("smartMappingSystemPrompt")?.value || "";
+          const userPrompt =
+            document.getElementById("smartMappingUserPrompt")?.value || "";
           const allText = systemPrompt + " " + userPrompt;
-          const occurrences = (allText.split(mapping.placeholder).length - 1);
-          console.log(`Placeholder ${mapping.placeholder} appears ${occurrences} times in prompts`);
+          const occurrences = allText.split(mapping.placeholder).length - 1;
+          console.log(
+            `Placeholder ${mapping.placeholder} appears ${occurrences} times in prompts`
+          );
           return total + occurrences;
         }, 0);
-        
-        console.log(`Stats: ${activeMappingsCount} mappings, ${usedFieldsCount} fields used, ${replacementsCount} replacements`);
-        
+
+        console.log(
+          `Stats: ${activeMappingsCount} mappings, ${usedFieldsCount} fields used, ${replacementsCount} replacements`
+        );
+
         // Calculate how many fields are detected in prompts vs mapped
-        const systemPrompt = document.getElementById("smartMappingSystemPrompt")?.value || "";
-        const userPrompt = document.getElementById("smartMappingUserPrompt")?.value || "";
+        const systemPrompt =
+          document.getElementById("smartMappingSystemPrompt")?.value || "";
+        const userPrompt =
+          document.getElementById("smartMappingUserPrompt")?.value || "";
         const allPromptText = systemPrompt + " " + userPrompt;
-        
+
         // Count total placeholders in prompts (both mapped and unmapped)
         const placeholderMatches = allPromptText.match(/\{\{[^}]+\}\}/g) || [];
         const totalFieldsDetected = placeholderMatches.length;
         const mappedCount = activeMappingsCount; // These are the ones we have mappings for
         const needMappingCount = Math.max(0, totalFieldsDetected - mappedCount);
-        
-        console.log(`Detected ${totalFieldsDetected} placeholders, ${mappedCount} mapped, ${needMappingCount} need mapping`);
-        
+
+        console.log(
+          `Detected ${totalFieldsDetected} placeholders, ${mappedCount} mapped, ${needMappingCount} need mapping`
+        );
+
         statsContainer.innerHTML = `
           <div class="smart-mapping-stat">
             <div class="smart-mapping-stat-number">${totalFieldsDetected}</div>
@@ -1791,279 +1939,374 @@ export default function supernova() {
           </div>
         `;
       }
-      
+
       function handleClearAllMappings() {
         if (activeMappings.length === 0) return;
-        
-        const confirm = window.confirm(`Are you sure you want to clear all ${activeMappings.length} mappings?`);
+
+        const confirm = window.confirm(
+          `Are you sure you want to clear all ${activeMappings.length} mappings?`
+        );
         if (!confirm) return;
-        
+
         // Remove all placeholders from textareas
-        activeMappings.forEach(mapping => {
+        activeMappings.forEach((mapping) => {
           const textarea = document.getElementById(mapping.textareaId);
           if (textarea) {
-            textarea.value = textarea.value.replace(new RegExp(mapping.placeholder.replace(/[{}]/g, "\\$&"), "g"), mapping.originalText);
+            textarea.value = textarea.value.replace(
+              new RegExp(mapping.placeholder.replace(/[{}]/g, "\\$&"), "g"),
+              mapping.originalText
+            );
           }
         });
-        
+
         // Clear mappings
         activeMappings = [];
-        
+
         // Update displays
         updateActiveMappingsDisplay();
         updateFieldTagStates();
         updateMappingStats();
-        
+
         updateValidationMessage("✅ All mappings cleared");
         setTimeout(() => {
-          updateValidationMessage("Ready to create field mappings - select text in your prompts");
+          updateValidationMessage(
+            "Ready to create field mappings - select text in your prompts"
+          );
         }, 2000);
       }
-      
+
       function showDropZones() {
         // Visual feedback for drop zones could be added here
         console.log("Showing drop zones");
       }
-      
+
       function hideDropZones() {
         // Hide drop zones
         console.log("Hiding drop zones");
       }
-      
+
       function updateValidationMessage(message) {
         const validationDiv = document.getElementById("smartMappingValidation");
         if (validationDiv) {
           validationDiv.textContent = message;
         }
       }
-      
+
       // Function to update existing mappings when field names change
       function updateMappingsWithNewFieldNames(availableFields) {
         if (activeMappings.length === 0) {
           console.log("No active mappings to update");
           return;
         }
-        
+
         // Create a map of all current field names
         const allCurrentFields = [
-          ...availableFields.dimensions.map(d => d.name),
-          ...availableFields.measures.map(m => m.name)
+          ...availableFields.dimensions.map((d) => d.name),
+          ...availableFields.measures.map((m) => m.name),
         ];
-        
+
         console.log("🔄 Updating mappings with new field names:");
         console.log("Available fields:", allCurrentFields);
         console.log("Current mappings before update:", activeMappings);
-        
+
         let updatedCount = 0;
         let removedCount = 0;
-        
+
         // Check each mapping to see if the field still exists or has been renamed
         activeMappings.forEach((mapping, index) => {
           const oldFieldName = mapping.fieldName;
-          
+
           // If the field still exists, no need to update
           if (allCurrentFields.includes(oldFieldName)) {
-            console.log(`✅ Field '${oldFieldName}' still exists - no update needed`);
+            console.log(
+              `✅ Field '${oldFieldName}' still exists - no update needed`
+            );
             return;
           }
-          
-          console.log(`🔍 Field '${oldFieldName}' no longer exists, looking for replacement...`);
-          
+
+          console.log(
+            `🔍 Field '${oldFieldName}' no longer exists, looking for replacement...`
+          );
+
           // Try to find a field with similar name (case-insensitive, partial match)
-          const similarField = allCurrentFields.find(field => {
-            const oldLower = oldFieldName.toLowerCase().replace(/[^a-z0-9]/g, '');
-            const newLower = field.toLowerCase().replace(/[^a-z0-9]/g, '');
-            
+          const similarField = allCurrentFields.find((field) => {
+            const oldLower = oldFieldName
+              .toLowerCase()
+              .replace(/[^a-z0-9]/g, "");
+            const newLower = field.toLowerCase().replace(/[^a-z0-9]/g, "");
+
             // Exact match after cleaning (handles spaces, symbols, etc.)
             if (oldLower === newLower) {
-              console.log(`  📍 Exact match found: '${oldFieldName}' → '${field}'`);
+              console.log(
+                `  📍 Exact match found: '${oldFieldName}' → '${field}'`
+              );
               return true;
             }
-            
+
             // Check if one contains the other (handles additions like $ symbol)
             if (oldLower.includes(newLower) || newLower.includes(oldLower)) {
-              console.log(`  📍 Contains match found: '${oldFieldName}' → '${field}'`);
+              console.log(
+                `  📍 Contains match found: '${oldFieldName}' → '${field}'`
+              );
               return true;
             }
-            
+
             // Check for common patterns in measure names
-            const oldBase = oldLower.replace(/sum|avg|count|max|min|total|amount|\$|dollar/g, '');
-            const newBase = newLower.replace(/sum|avg|count|max|min|total|amount|\$|dollar/g, '');
+            const oldBase = oldLower.replace(
+              /sum|avg|count|max|min|total|amount|\$|dollar/g,
+              ""
+            );
+            const newBase = newLower.replace(
+              /sum|avg|count|max|min|total|amount|\$|dollar/g,
+              ""
+            );
             if (oldBase === newBase && oldBase.length > 3) {
-              console.log(`  📍 Pattern match found: '${oldFieldName}' → '${field}'`);
+              console.log(
+                `  📍 Pattern match found: '${oldFieldName}' → '${field}'`
+              );
               return true;
             }
-            
+
             // Check for common keywords (at least 80% word similarity)
-            const oldWords = oldFieldName.toLowerCase().split(/[^a-z0-9]+/).filter(w => w.length > 2);
-            const newWords = field.toLowerCase().split(/[^a-z0-9]+/).filter(w => w.length > 2);
-            const commonWords = oldWords.filter(word => newWords.some(newWord => 
-              newWord.includes(word) || word.includes(newWord)
-            ));
-            
-            const similarity = commonWords.length / Math.max(oldWords.length, newWords.length);
+            const oldWords = oldFieldName
+              .toLowerCase()
+              .split(/[^a-z0-9]+/)
+              .filter((w) => w.length > 2);
+            const newWords = field
+              .toLowerCase()
+              .split(/[^a-z0-9]+/)
+              .filter((w) => w.length > 2);
+            const commonWords = oldWords.filter((word) =>
+              newWords.some(
+                (newWord) => newWord.includes(word) || word.includes(newWord)
+              )
+            );
+
+            const similarity =
+              commonWords.length / Math.max(oldWords.length, newWords.length);
             if (similarity >= 0.8) {
-              console.log(`  📍 Keyword match found (${Math.round(similarity * 100)}%): '${oldFieldName}' → '${field}'`);
+              console.log(
+                `  📍 Keyword match found (${Math.round(
+                  similarity * 100
+                )}%): '${oldFieldName}' → '${field}'`
+              );
               return true;
             }
-            
+
             return false;
           });
-          
+
           if (similarField) {
-            console.log(`✅ Found replacement: '${oldFieldName}' → '${similarField}'`);
+            console.log(
+              `✅ Found replacement: '${oldFieldName}' → '${similarField}'`
+            );
             mapping.fieldName = similarField;
-            
+
             // Update the field type if needed
-            const isDimension = availableFields.dimensions.some(d => d.name === similarField);
-            mapping.fieldType = isDimension ? 'dimension' : 'measure';
+            const isDimension = availableFields.dimensions.some(
+              (d) => d.name === similarField
+            );
+            mapping.fieldType = isDimension ? "dimension" : "measure";
             updatedCount++;
           } else {
-            console.log(`❌ No replacement found for '${oldFieldName}' - marking as invalid`);
+            console.log(
+              `❌ No replacement found for '${oldFieldName}' - marking as invalid`
+            );
             mapping.invalid = true;
             removedCount++;
           }
         });
-        
+
         // Remove invalid mappings
         if (removedCount > 0) {
-          const validMappings = activeMappings.filter(mapping => !mapping.invalid);
-          
+          const validMappings = activeMappings.filter(
+            (mapping) => !mapping.invalid
+          );
+
           // Remove invalid placeholders from textareas
-          activeMappings.forEach(mapping => {
+          activeMappings.forEach((mapping) => {
             if (mapping.invalid) {
               const textarea = document.getElementById(mapping.textareaId);
               if (textarea) {
                 const oldValue = textarea.value;
                 const newValue = textarea.value.replace(
-                  new RegExp(mapping.placeholder.replace(/[{}]/g, "\\$&"), "g"), 
+                  new RegExp(mapping.placeholder.replace(/[{}]/g, "\\$&"), "g"),
                   mapping.originalText
                 );
                 textarea.value = newValue;
-                console.log(`Removed invalid placeholder ${mapping.placeholder} from textarea`);
+                console.log(
+                  `Removed invalid placeholder ${mapping.placeholder} from textarea`
+                );
               }
             }
           });
-          
+
           activeMappings = validMappings;
           console.log(`🗑️ Removed ${removedCount} invalid mappings`);
         }
-        
-        console.log(`🔄 Mapping update complete: ${updatedCount} updated, ${removedCount} removed`);
+
+        console.log(
+          `🔄 Mapping update complete: ${updatedCount} updated, ${removedCount} removed`
+        );
         console.log("Final mappings after update:", activeMappings);
       }
 
       // Field Selector Functions
       function showFieldSelector(selectedText) {
         const popup = document.getElementById("fieldSelectorPopup");
-        const selectedTextDisplay = document.getElementById("selectedTextDisplay");
-        
+        const selectedTextDisplay = document.getElementById(
+          "selectedTextDisplay"
+        );
+
         if (!popup || !selectedTextDisplay) return;
-        
+
         // Update selected text display
         selectedTextDisplay.textContent = selectedText;
-        
+
         // Populate field options
         populateFieldSelectorOptions();
-        
+
         // Show popup
         popup.style.display = "block";
       }
-      
+
       function hideFieldSelector() {
         const popup = document.getElementById("fieldSelectorPopup");
         if (popup) {
           popup.style.display = "none";
         }
       }
-      
+
       function populateFieldSelectorOptions() {
         const availableFields = getAvailableFields(layout);
-        const usedFields = new Set(activeMappings.map(m => m.fieldName));
-        
+        const usedFields = new Set(activeMappings.map((m) => m.fieldName));
+
         // Populate dimensions
-        const dimensionsContainer = document.getElementById("fieldSelectorDimensions");
+        const dimensionsContainer = document.getElementById(
+          "fieldSelectorDimensions"
+        );
         if (dimensionsContainer) {
           if (availableFields.dimensions.length === 0) {
-            dimensionsContainer.innerHTML = '<div style="color: #999; font-size: 12px; padding: 8px;">No dimensions available</div>';
+            dimensionsContainer.innerHTML =
+              '<div style="color: #999; font-size: 12px; padding: 8px;">No dimensions available</div>';
           } else {
-            dimensionsContainer.innerHTML = availableFields.dimensions.map(dim => `
-              <div class="field-selector-option ${usedFields.has(dim.name) ? 'used' : ''}" 
+            dimensionsContainer.innerHTML = availableFields.dimensions
+              .map(
+                (dim) => `
+              <div class="field-selector-option ${
+                usedFields.has(dim.name) ? "used" : ""
+              }" 
                    onclick="selectField('${dim.name}', 'dimension')"
-                   title="Field: ${dim.name}${dim.displayName !== dim.name ? '\nLabel: ' + dim.displayName : ''}">
-                <div style="font-weight: 500;">${dim.displayName || dim.name}</div>
-                ${dim.displayName !== dim.name ? `<div style="font-size: 10px; opacity: 0.7; margin-top: 2px;">${dim.name}</div>` : ''}
+                   title="Field: ${dim.name}${
+                  dim.displayName !== dim.name
+                    ? "\nLabel: " + dim.displayName
+                    : ""
+                }">
+                <div style="font-weight: 500;">${
+                  dim.displayName || dim.name
+                }</div>
+                ${
+                  dim.displayName !== dim.name
+                    ? `<div style="font-size: 10px; opacity: 0.7; margin-top: 2px;">${dim.name}</div>`
+                    : ""
+                }
               </div>
-            `).join('');
+            `
+              )
+              .join("");
           }
         }
-        
+
         // Populate measures
-        const measuresContainer = document.getElementById("fieldSelectorMeasures");
+        const measuresContainer = document.getElementById(
+          "fieldSelectorMeasures"
+        );
         if (measuresContainer) {
           if (availableFields.measures.length === 0) {
-            measuresContainer.innerHTML = '<div style="color: #999; font-size: 12px; padding: 8px;">No measures available</div>';
+            measuresContainer.innerHTML =
+              '<div style="color: #999; font-size: 12px; padding: 8px;">No measures available</div>';
           } else {
-            measuresContainer.innerHTML = availableFields.measures.map(measure => `
-              <div class="field-selector-option ${usedFields.has(measure.name) ? 'used' : ''}" 
+            measuresContainer.innerHTML = availableFields.measures
+              .map(
+                (measure) => `
+              <div class="field-selector-option ${
+                usedFields.has(measure.name) ? "used" : ""
+              }" 
                    onclick="selectField('${measure.name}', 'measure')"
-                   title="Field: ${measure.name}${measure.displayName !== measure.name ? '\nLabel: ' + measure.displayName : ''}">
-                <div style="font-weight: 500;">${measure.displayName || measure.name}</div>
-                ${measure.displayName !== measure.name ? `<div style="font-size: 10px; opacity: 0.7; margin-top: 2px;">${measure.name}</div>` : ''}
+                   title="Field: ${measure.name}${
+                  measure.displayName !== measure.name
+                    ? "\nLabel: " + measure.displayName
+                    : ""
+                }">
+                <div style="font-weight: 500;">${
+                  measure.displayName || measure.name
+                }</div>
+                ${
+                  measure.displayName !== measure.name
+                    ? `<div style="font-size: 10px; opacity: 0.7; margin-top: 2px;">${measure.name}</div>`
+                    : ""
+                }
               </div>
-            `).join('');
+            `
+              )
+              .join("");
           }
         }
       }
-      
+
       // Global functions for field selector
-      window.selectField = function(fieldName, fieldType) {
+      window.selectField = function (fieldName, fieldType) {
         if (selectedTextInfo) {
           createFieldMapping(fieldName, fieldType, selectedTextInfo);
           hideFieldSelector();
         }
       };
-      
+
       window.hideFieldSelector = hideFieldSelector;
-      
+
       // Global function for removing mappings
-      window.removeFieldMapping = function(mappingId) {
+      window.removeFieldMapping = function (mappingId) {
         console.log("Attempting to remove mapping with ID:", mappingId);
         console.log("Current active mappings:", activeMappings);
-        
-        const mapping = activeMappings.find(m => m.id === mappingId);
+
+        const mapping = activeMappings.find((m) => m.id === mappingId);
         if (!mapping) {
           console.error("Mapping not found with ID:", mappingId);
-          console.log("Available mapping IDs:", activeMappings.map(m => m.id));
+          console.log(
+            "Available mapping IDs:",
+            activeMappings.map((m) => m.id)
+          );
           return;
         }
-        
+
         console.log("Found mapping to remove:", mapping);
-        
+
         // Remove placeholder from textarea
         const textarea = document.getElementById(mapping.textareaId);
         if (textarea) {
           const oldValue = textarea.value;
           const newValue = textarea.value.replace(
-            new RegExp(mapping.placeholder.replace(/[{}]/g, "\\$&"), "g"), 
+            new RegExp(mapping.placeholder.replace(/[{}]/g, "\\$&"), "g"),
             mapping.originalText
           );
           textarea.value = newValue;
           console.log("Updated textarea:", oldValue, "→", newValue);
         }
-        
+
         // Remove from active mappings
-        activeMappings = activeMappings.filter(m => m.id !== mappingId);
+        activeMappings = activeMappings.filter((m) => m.id !== mappingId);
         console.log("Active mappings after removal:", activeMappings);
-        
+
         // Update displays
         updateActiveMappingsDisplay();
         updateFieldTagStates();
         updateMappingStats();
-        
+
         updateValidationMessage(`✅ Removed mapping: ${mapping.placeholder}`);
         setTimeout(() => {
-          updateValidationMessage("Ready to create field mappings - select text in your prompts");
+          updateValidationMessage(
+            "Ready to create field mappings - select text in your prompts"
+          );
         }, 2000);
       };
 
@@ -3398,31 +3641,37 @@ export default function supernova() {
         const userPrompt =
           document.getElementById("smartMappingUserPrompt")?.value || "";
 
-        console.log("Detecting fields in prompts:", { systemPrompt: systemPrompt.length, userPrompt: userPrompt.length });
+        console.log("Detecting fields in prompts:", {
+          systemPrompt: systemPrompt.length,
+          userPrompt: userPrompt.length,
+        });
 
         // Check if the prompts contain placeholders that match existing mappings
         const allPromptText = systemPrompt + " " + userPrompt;
-        const existingPlaceholders = activeMappings.map(m => m.placeholder);
-        const foundPlaceholders = existingPlaceholders.filter(placeholder => 
+        const existingPlaceholders = activeMappings.map((m) => m.placeholder);
+        const foundPlaceholders = existingPlaceholders.filter((placeholder) =>
           allPromptText.includes(placeholder)
         );
-        
+
         console.log("Existing mappings:", activeMappings.length);
         console.log("Found placeholders in text:", foundPlaceholders.length);
-        
+
         // If we lost some mappings (user deleted text), remove them from active mappings
         if (foundPlaceholders.length < activeMappings.length) {
-          const missingPlaceholders = existingPlaceholders.filter(placeholder => 
-            !allPromptText.includes(placeholder)
+          const missingPlaceholders = existingPlaceholders.filter(
+            (placeholder) => !allPromptText.includes(placeholder)
           );
-          
-          console.log("Missing placeholders (removing from active mappings):", missingPlaceholders);
-          
+
+          console.log(
+            "Missing placeholders (removing from active mappings):",
+            missingPlaceholders
+          );
+
           // Remove mappings for placeholders that are no longer in the text
-          activeMappings = activeMappings.filter(mapping => 
+          activeMappings = activeMappings.filter((mapping) =>
             allPromptText.includes(mapping.placeholder)
           );
-          
+
           console.log("Active mappings after cleanup:", activeMappings.length);
         }
 
@@ -3500,7 +3749,8 @@ export default function supernova() {
 
         // 🆕 CHECK MAPPING COMPLETENESS: Show info about active mappings
         const totalMappings = activeMappings.length;
-        const uniqueFields = new Set(activeMappings.map(m => m.fieldName)).size;
+        const uniqueFields = new Set(activeMappings.map((m) => m.fieldName))
+          .size;
 
         if (totalMappings === 0) {
           const proceed = confirm(
@@ -3522,7 +3772,7 @@ export default function supernova() {
             source: mapping.source,
             fieldType: mapping.fieldType,
             confidence: 100, // Select Mode mappings are always 100% confident
-            detectionMethod: "select_mode"
+            detectionMethod: "select_mode",
           }));
 
           // Save to localStorage for session persistence
@@ -3572,7 +3822,9 @@ export default function supernova() {
         try {
           const objectId = layout?.qInfo?.qId;
           if (!objectId) {
-            console.log("No object ID available for loading saved configuration");
+            console.log(
+              "No object ID available for loading saved configuration"
+            );
             return false;
           }
 
@@ -3601,7 +3853,7 @@ export default function supernova() {
             console.log("Applied saved data to layout props:", {
               systemPrompt: layout.props.systemPrompt,
               userPrompt: layout.props.userPrompt,
-              fieldMappings: layout.props.fieldMappings
+              fieldMappings: layout.props.fieldMappings,
             });
           }
 
@@ -3623,7 +3875,7 @@ export default function supernova() {
         console.log("Opening modal for object ID:", objectId);
         console.log("Data passed to modal:", data);
         console.log("Current layout props:", layout?.props);
-        
+
         // Try to load from localStorage first, then fallback to data props
         const loadedFromStorage = loadSavedConfiguration();
 
@@ -3642,26 +3894,36 @@ export default function supernova() {
         // Reset active mappings for fresh start
         activeMappings = [];
         selectedTextInfo = null;
-        
+
         // Load saved field mappings and convert to active mappings
         const savedMappings =
           layout?.props?.fieldMappings || data?.props?.fieldMappings || [];
-        
+
         console.log("Loading saved mappings:", savedMappings);
-        
+
         if (savedMappings.length > 0) {
           // Convert saved mappings to active mappings format
           activeMappings = savedMappings.map((saved, index) => {
             const mapping = {
-              id: `mapping_${Date.now()}_${index}_${Math.floor(Math.random() * 10000)}`,
+              id: `mapping_${Date.now()}_${index}_${Math.floor(
+                Math.random() * 10000
+              )}`,
               placeholder: saved.placeholder,
               fieldName: saved.mappedField || saved.fieldName,
               fieldType: saved.fieldType || "dimension", // Default if not specified
               originalText: saved.originalText || saved.fieldName,
               source: saved.source || "system",
-              textareaId: saved.source === "user" ? "smartMappingUserPrompt" : "smartMappingSystemPrompt"
+              textareaId:
+                saved.source === "user"
+                  ? "smartMappingUserPrompt"
+                  : "smartMappingSystemPrompt",
             };
-            console.log(`Converted saved mapping ${index}:`, saved, "→", mapping);
+            console.log(
+              `Converted saved mapping ${index}:`,
+              saved,
+              "→",
+              mapping
+            );
             return mapping;
           });
           console.log("Final active mappings:", activeMappings);
@@ -3671,29 +3933,37 @@ export default function supernova() {
 
         setTimeout(() => {
           console.log("Modal opened with active mappings:", activeMappings);
-          
+
           // Setup all event handlers
           setupTextSelectionHandlers();
           setupDragDropHandlers();
-          
+
           // Update all displays
           updateActiveMappingsDisplay();
           updateFieldTagStates();
           updateMappingStats();
-          
+
           // Initial field detection to catch any existing placeholders
           detectAndDisplayFields();
-          
+
           // Show status if loaded from storage
           if (loadedFromStorage) {
-            updateValidationMessage("📂 Previous session data loaded automatically");
+            updateValidationMessage(
+              "📂 Previous session data loaded automatically"
+            );
             setTimeout(() => {
-              updateValidationMessage("Ready to create field mappings - select text in your prompts");
+              updateValidationMessage(
+                "Ready to create field mappings - select text in your prompts"
+              );
             }, 3000);
           } else if (activeMappings.length > 0) {
-            updateValidationMessage(`✅ Loaded ${activeMappings.length} saved mappings`);
+            updateValidationMessage(
+              `✅ Loaded ${activeMappings.length} saved mappings`
+            );
             setTimeout(() => {
-              updateValidationMessage("Ready to create field mappings - select text in your prompts");
+              updateValidationMessage(
+                "Ready to create field mappings - select text in your prompts"
+              );
             }, 3000);
           }
         }, 200);
@@ -3887,6 +4157,7 @@ export default function supernova() {
       // ALSO ADD: Enhanced field replacement that uses saved mappings with actual field names
       const replaceDynamicFieldsWithMappings = (promptText, layout) => {
         if (!layout.qHyperCube?.qDataPages?.[0]?.qMatrix?.length) {
+          console.log("No data available for field replacement");
           return promptText;
         }
 
@@ -3897,52 +4168,58 @@ export default function supernova() {
 
         // Use saved field mappings if available
         const savedMappings = props.fieldMappings || [];
+        console.log("🔍 Processing field mappings:", savedMappings.length);
 
         if (savedMappings.length > 0) {
-          // Use saved mappings for precise field replacement
           let replacedPrompt = promptText;
 
           savedMappings.forEach((mapping) => {
             if (mapping.mappedField && mapping.placeholder) {
-              // Find the mapped field in dimensions or measures
+              console.log(`🔍 Processing mapping: ${mapping.placeholder} → ${mapping.mappedField}`);
+              
               let fieldValue = "";
 
               // Check dimensions - look for actual field name in expression OR display name
-              const dimIndex = dimensionInfo.findIndex(
-                (dim) => {
-                  const actualFieldName = dim.qGroupFieldDefs?.[0] || dim.qFallbackTitle;
-                  return actualFieldName === mapping.mappedField || dim.qFallbackTitle === mapping.mappedField;
-                }
-              );
+              const dimIndex = dimensionInfo.findIndex((dim) => {
+                const actualFieldName = dim.qGroupFieldDefs?.[0] || dim.qFallbackTitle;
+                return (
+                  actualFieldName === mapping.mappedField ||
+                  dim.qFallbackTitle === mapping.mappedField
+                );
+              });
 
               if (dimIndex !== -1) {
                 const values = matrix
-                  .map(
-                    (row) => row[dimIndex]?.qText || row[dimIndex]?.qNum || ""
-                  )
-                  .filter((v) => v !== "");
+                  .map((row) => row[dimIndex]?.qText || row[dimIndex]?.qNum || "")
+                  .filter((v) => v !== "" && v !== "-" && v !== null && v !== undefined);
                 const uniqueValues = [...new Set(values)];
                 fieldValue = uniqueValues.slice(0, 5).join(", ");
-                console.log(`Found dimension data for '${mapping.mappedField}': ${fieldValue}`);
+                if (!fieldValue || fieldValue.trim() === "") {
+                  fieldValue = "No data available";
+                }
+                console.log(`✅ Found dimension data for '${mapping.mappedField}': ${fieldValue}`);
               } else {
                 // Check measures - look for actual field name in expression OR display name
-                const measureIndex = measureInfo.findIndex(
-                  (measure) => {
-                    const expression = measure.qDef?.qDef || measure.qFallbackTitle;
-                    // Extract actual field name from expression
-                    let actualFieldName = expression;
-                    const fieldMatch = expression.match(/\[([^\]]+)\]/);
-                    if (fieldMatch) {
-                      actualFieldName = fieldMatch[1];
-                    } else {
-                      const aggMatch = expression.match(/(?:sum|avg|count|max|min|total)\s*\(\s*([^)]+)\s*\)/i);
-                      if (aggMatch) {
-                        actualFieldName = aggMatch[1].replace(/['"]/g, '').trim();
-                      }
+                const measureIndex = measureInfo.findIndex((measure) => {
+                  const expression = measure.qDef?.qDef || measure.qFallbackTitle;
+                  // Extract actual field name from expression
+                  let actualFieldName = expression;
+                  const fieldMatch = expression.match(/\[([^\]]+)\]/);
+                  if (fieldMatch) {
+                    actualFieldName = fieldMatch[1];
+                  } else {
+                    const aggMatch = expression.match(
+                      /(?:sum|avg|count|max|min|total)\s*\(\s*([^)]+)\s*\)/i
+                    );
+                    if (aggMatch) {
+                      actualFieldName = aggMatch[1].replace(/['"]/g, "").trim();
                     }
-                    return actualFieldName === mapping.mappedField || measure.qFallbackTitle === mapping.mappedField;
                   }
-                );
+                  return (
+                    actualFieldName === mapping.mappedField ||
+                    measure.qFallbackTitle === mapping.mappedField
+                  );
+                });
 
                 if (measureIndex !== -1) {
                   const dimCount = dimensionInfo.length;
@@ -3957,29 +4234,82 @@ export default function supernova() {
                     .slice(0, 5)
                     .map((v) => v.toString())
                     .join(", ");
-                  console.log(`Found measure data for '${mapping.mappedField}': ${fieldValue}`);
+                  if (!fieldValue || fieldValue.trim() === "" || fieldValue === "0, 0, 0, 0, 0") {
+                    fieldValue = "No data available";
+                  }
+                  console.log(`✅ Found measure data for '${mapping.mappedField}': ${fieldValue}`);
                 }
               }
 
-              // Replace the placeholder with actual field value
-              if (fieldValue) {
+              // Replace the placeholder with actual field value (always replace, even with "No data available")
+              if (fieldValue !== "") {
                 const placeholderRegex = new RegExp(
                   mapping.placeholder.replace(/[{}]/g, "\\$&"),
                   "g"
                 );
                 replacedPrompt = replacedPrompt.replace(
                   placeholderRegex,
-                  fieldValue
+                  fieldValue || "No data available"
                 );
+                console.log(`🔄 Replaced ${mapping.placeholder} with: ${fieldValue}`);
               }
             }
           });
 
+          console.log("✅ Field replacement complete");
           return replacedPrompt;
         }
 
         // Fallback to original field replacement logic
+        console.log("📝 Using fallback field replacement");
         return replaceDynamicFields(promptText, layout);
+      };
+
+      // FIXED: Robust expression building with proper escaping
+      const buildLLMExpression = (fullPrompt, props) => {
+        console.log("🏗️ Building LLM expression (ultra-safe approach)...");
+        
+        // Step 1: Validate inputs
+        const connectionName = String(props.connectionName || '').trim();
+        if (!connectionName) {
+          throw new Error("Connection name is required");
+        }
+        
+        // Step 2: Clean prompt - be more aggressive about removing problematic characters
+        let cleanPrompt = String(fullPrompt || '')
+          .trim()
+          .replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F-\x9F]/g, '') // Control chars
+          .replace(/'/g, "'")       // Normalize quotes  
+          .replace(/"/g, '"')       // Normalize double quotes
+          .replace(/\r\n/g, '\n')   // Normalize line endings
+          .replace(/\r/g, '\n');
+        
+        if (!cleanPrompt) {
+          throw new Error("Prompt is empty after cleaning");
+        }
+        
+        console.log("📝 Cleaned prompt length:", cleanPrompt.length);
+        
+        // Step 3: Build config with safe numeric values
+        const temperature = Math.max(0, Math.min(2, Number(props.temperature || 0.7)));
+        const maxTokens = Math.max(1, Math.min(4000, Number(props.maxTokens || 1000)));
+        
+        // Step 4: Use the simplest possible approach that works
+        const configStr = `{"RequestType":"endpoint","endpoint":{"connectionname":"${connectionName.replace(/"/g, '\\"')}","column":"text","parameters":{"temperature":${temperature},"max_tokens":${maxTokens}}}}`;
+        
+        // Step 5: Use double single quotes for Qlik string escaping
+        const escapedPrompt = cleanPrompt.replace(/'/g, "''");
+        
+        // Step 6: Build expression
+        const expression = `endpoints.ScriptEvalStr('${configStr}', '${escapedPrompt}')`;
+        
+        console.log("🔒 Using ultra-safe Qlik escaping approach");
+        console.log("🔍 Config string:", configStr.substring(0, 100) + "...");
+        console.log("🔍 Escaped prompt preview:", escapedPrompt.substring(0, 100) + "...");
+        console.log("✅ Expression built successfully, length:", expression.length);
+        console.log("🔍 Expression preview:", expression.substring(0, 200) + "...");
+        
+        return expression;
       };
 
       // Helper function for save success
@@ -4012,25 +4342,23 @@ export default function supernova() {
 
       function handlePromptChange(event) {
         console.log("Prompt content changed:", event?.target?.id);
-        
+
         // Use debouncing to avoid too many updates while typing
         clearTimeout(window.promptChangeTimeout);
         window.promptChangeTimeout = setTimeout(() => {
           console.log("Processing prompt change...");
-          
+
           // Real-time field detection as user types/pastes
           detectAndDisplayFields();
-          
+
           // Update displays to reflect any changes
           updateActiveMappingsDisplay();
           updateFieldTagStates();
           updateMappingStats();
-          
+
           console.log("Prompt change processing complete");
         }, 300); // 300ms debounce
       }
-
-
 
       async function handleRefreshFields() {
         try {
@@ -4041,83 +4369,93 @@ export default function supernova() {
             refreshBtn.style.background = "#ffc107";
             refreshBtn.disabled = true;
           }
-          
+
           console.log("🔄 Starting field refresh...");
           console.log("Current layout before refresh:", layout);
-          
+
           // Get the fresh layout from the current object with timeout
           const currentObject = await app.getObject(layout.qInfo.qId);
           const freshLayout = await Promise.race([
             currentObject.getLayout(),
-            new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), 5000))
+            new Promise((_, reject) =>
+              setTimeout(() => reject(new Error("Timeout")), 5000)
+            ),
           ]);
-          
+
           console.log("Fresh layout received:", freshLayout);
-          
+
           // Update global layout reference - THIS IS CRITICAL
           layout = freshLayout;
-          
+
           // Force refresh the available fields from the updated layout
           const availableFields = getAvailableFields(freshLayout);
           console.log("Available fields after refresh:", availableFields);
-          
+
           updateAvailableFieldsDisplay(availableFields);
-          
+
           // Update existing mappings with new field names if they exist
           updateMappingsWithNewFieldNames(availableFields);
-          
+
           // CRITICAL: Refresh all displays in the correct order
           setTimeout(() => {
             console.log("Updating all displays after refresh...");
             updateActiveMappingsDisplay();
             updateFieldTagStates(); // This was missing the proper timing
             updateMappingStats();
-            
+
             // Re-setup drag-drop handlers for new field tags
             setupDragDropHandlers();
-            
+
             // If field selector is open, refresh it too
-            const fieldSelectorPopup = document.getElementById("fieldSelectorPopup");
-            if (fieldSelectorPopup && fieldSelectorPopup.style.display !== "none") {
+            const fieldSelectorPopup =
+              document.getElementById("fieldSelectorPopup");
+            if (
+              fieldSelectorPopup &&
+              fieldSelectorPopup.style.display !== "none"
+            ) {
               populateFieldSelectorOptions();
             }
-            
+
             console.log("✅ All displays updated after refresh");
           }, 100);
-          
+
           // Show success feedback
           if (refreshBtn) {
             refreshBtn.textContent = "Refreshed!";
             refreshBtn.style.background = "#28a745";
             refreshBtn.disabled = false;
-            
+
             setTimeout(() => {
               refreshBtn.textContent = "Refresh";
               refreshBtn.style.background = "#17a2b8";
             }, 1000);
           }
-          
-          updateValidationMessage("✅ Fields refreshed - existing mappings updated");
+
+          updateValidationMessage(
+            "✅ Fields refreshed - existing mappings updated"
+          );
           setTimeout(() => {
-            updateValidationMessage("Ready to create field mappings - select text in your prompts");
+            updateValidationMessage(
+              "Ready to create field mappings - select text in your prompts"
+            );
           }, 3000);
-          
+
           console.log("✅ Fields refreshed with latest layout");
         } catch (error) {
           console.error("Error refreshing fields:", error);
-          
+
           // Fallback to old method (faster) but still update displays
           const availableFields = getAvailableFields(layout);
           updateAvailableFieldsDisplay(availableFields);
           updateFieldTagStates(); // Make sure this is called even in fallback
-          
+
           // Show error feedback
           const refreshBtn = document.getElementById("smartMappingRefreshBtn");
           if (refreshBtn) {
             refreshBtn.textContent = "Try Again";
             refreshBtn.style.background = "#dc3545";
             refreshBtn.disabled = false;
-            
+
             setTimeout(() => {
               refreshBtn.textContent = "Refresh";
               refreshBtn.style.background = "#17a2b8";
@@ -4125,13 +4463,6 @@ export default function supernova() {
           }
         }
       }
-
-
-
-
-
-
-
 
       // ===== END MODAL FUNCTIONS =====
 
@@ -4257,14 +4588,16 @@ export default function supernova() {
             // Enhanced Configuration needed with step-by-step guidance
             const hasConnection = !!props.connectionName;
             const hasValidation = !!props.enableCustomValidation;
-            const hasData = !!(layout.qHyperCube?.qDimensionInfo?.length || layout.qHyperCube?.qMeasureInfo?.length);
+            const hasData = !!(
+              layout.qHyperCube?.qDimensionInfo?.length ||
+              layout.qHyperCube?.qMeasureInfo?.length
+            );
             const hasPrompts = !!(props.systemPrompt && props.userPrompt);
 
             content += `
-              <div style="flex: 1; display: flex; flex-direction: column; gap: 16px; background: #f8f9fa; border: 2px dashed #dee2e6; border-radius: 12px; padding: 24px; min-height: 200px;">
                 <!-- Header -->
                 <div style="text-align: center; margin-bottom: 8px;">
-                  <div style="font-size: 48px; margin-bottom: 12px; opacity: 0.4;">🚀</div>
+                  <div style="font-size: 48px; margin-bottom: 12px; opacity: 0.4;"></div>
                   <h3 style="margin: 0 0 6px 0; color: #495057; font-size: 18px; font-weight: 600;">Welcome to Dynamic LLM Extension</h3>
                   <p style="margin: 0; font-size: 14px; color: #6c757d;">Follow these steps to get started with AI-powered data analysis</p>
                 </div>
@@ -4273,61 +4606,133 @@ export default function supernova() {
                 <div style="max-width: 500px; margin: 0 auto; width: 100%;">
                   
                   <!-- Step 1: Connection -->
-                  <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 16px; padding: 12px; background: ${hasConnection ? '#e8f5e8' : '#fff3e0'}; border: 1px solid ${hasConnection ? '#c3e6c3' : '#ffcc80'}; border-radius: 8px;">
-                    <div style="flex-shrink: 0; width: 24px; height: 24px; border-radius: 50%; background: ${hasConnection ? '#28a745' : '#ff9800'}; color: white; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: bold;">
-                      ${hasConnection ? '✓' : '1'}
+                  <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 16px; padding: 12px; background: ${
+                    hasConnection ? "#e8f5e8" : "#fff3e0"
+                  }; border: 1px solid ${
+              hasConnection ? "#c3e6c3" : "#ffcc80"
+            }; border-radius: 8px;">
+                    <div style="flex-shrink: 0; width: 24px; height: 24px; border-radius: 50%; background: ${
+                      hasConnection ? "#28a745" : "#ff9800"
+                    }; color: white; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: bold;">
+                      ${hasConnection ? "✓" : "1"}
                     </div>
                     <div style="flex: 1;">
-                      <div style="font-weight: 600; font-size: 13px; color: ${hasConnection ? '#155724' : '#e65100'};">
-                        ${hasConnection ? 'Connection Configured ✓' : 'Configure Claude Connection'}
+                      <div style="font-weight: 600; font-size: 13px; color: ${
+                        hasConnection ? "#155724" : "#e65100"
+                      };">
+                        ${
+                          hasConnection
+                            ? "Connection Configured ✓"
+                            : "Configure Claude Connection"
+                        }
                       </div>
-                      <div style="font-size: 11px; color: ${hasConnection ? '#155724' : '#e65100'}; opacity: 0.8;">
-                        ${hasConnection ? 'Ready to connect to Claude AI' : 'Set connection name in LLM Configuration panel'}
+                      <div style="font-size: 11px; color: ${
+                        hasConnection ? "#155724" : "#e65100"
+                      }; opacity: 0.8;">
+                        ${
+                          hasConnection
+                            ? "Ready to connect to Claude AI"
+                            : "Set connection name in LLM Configuration panel"
+                        }
                       </div>
                     </div>
                   </div>
 
                   <!-- Step 2: Validation -->
-                  <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 16px; padding: 12px; background: ${hasValidation ? '#e8f5e8' : '#fff3e0'}; border: 1px solid ${hasValidation ? '#c3e6c3' : '#ffcc80'}; border-radius: 8px;">
-                    <div style="flex-shrink: 0; width: 24px; height: 24px; border-radius: 50%; background: ${hasValidation ? '#28a745' : '#ff9800'}; color: white; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: bold;">
-                      ${hasValidation ? '✓' : '2'}
+                  <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 16px; padding: 12px; background: ${
+                    hasValidation ? "#e8f5e8" : "#fff3e0"
+                  }; border: 1px solid ${
+              hasValidation ? "#c3e6c3" : "#ffcc80"
+            }; border-radius: 8px;">
+                    <div style="flex-shrink: 0; width: 24px; height: 24px; border-radius: 50%; background: ${
+                      hasValidation ? "#28a745" : "#ff9800"
+                    }; color: white; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: bold;">
+                      ${hasValidation ? "✓" : "2"}
                     </div>
                     <div style="flex: 1;">
-                      <div style="font-weight: 600; font-size: 13px; color: ${hasValidation ? '#155724' : '#e65100'};">
-                        ${hasValidation ? 'Validation Configured ✓' : 'Setup Selection Validation'}
+                      <div style="font-weight: 600; font-size: 13px; color: ${
+                        hasValidation ? "#155724" : "#e65100"
+                      };">
+                        ${
+                          hasValidation
+                            ? "Validation Configured ✓"
+                            : "Setup Selection Validation"
+                        }
                       </div>
-                      <div style="font-size: 11px; color: ${hasValidation ? '#155724' : '#e65100'}; opacity: 0.8;">
-                        ${hasValidation ? 'Custom validation rules are active' : 'Enable validation in Selection Validation panel'}
+                      <div style="font-size: 11px; color: ${
+                        hasValidation ? "#155724" : "#e65100"
+                      }; opacity: 0.8;">
+                        ${
+                          hasValidation
+                            ? "Custom validation rules are active"
+                            : "Enable validation in Selection Validation panel"
+                        }
                       </div>
                     </div>
                   </div>
 
                   <!-- Step 3: Data -->
-                  <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 16px; padding: 12px; background: ${hasData ? '#e8f5e8' : '#fff3e0'}; border: 1px solid ${hasData ? '#c3e6c3' : '#ffcc80'}; border-radius: 8px;">
-                    <div style="flex-shrink: 0; width: 24px; height: 24px; border-radius: 50%; background: ${hasData ? '#28a745' : '#ff9800'}; color: white; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: bold;">
-                      ${hasData ? '✓' : '3'}
+                  <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 16px; padding: 12px; background: ${
+                    hasData ? "#e8f5e8" : "#fff3e0"
+                  }; border: 1px solid ${
+              hasData ? "#c3e6c3" : "#ffcc80"
+            }; border-radius: 8px;">
+                    <div style="flex-shrink: 0; width: 24px; height: 24px; border-radius: 50%; background: ${
+                      hasData ? "#28a745" : "#ff9800"
+                    }; color: white; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: bold;">
+                      ${hasData ? "✓" : "3"}
                     </div>
                     <div style="flex: 1;">
-                      <div style="font-weight: 600; font-size: 13px; color: ${hasData ? '#155724' : '#e65100'};">
-                        ${hasData ? 'Data Fields Added ✓' : 'Add Dimensions & Measures'}
+                      <div style="font-weight: 600; font-size: 13px; color: ${
+                        hasData ? "#155724" : "#e65100"
+                      };">
+                        ${
+                          hasData
+                            ? "Data Fields Added ✓"
+                            : "Add Dimensions & Measures"
+                        }
                       </div>
-                      <div style="font-size: 11px; color: ${hasData ? '#155724' : '#e65100'}; opacity: 0.8;">
-                        ${hasData ? `${layout.qHyperCube?.qDimensionInfo?.length || 0} dimensions, ${layout.qHyperCube?.qMeasureInfo?.length || 0} measures` : 'Add data fields in the Data panel'}
+                      <div style="font-size: 11px; color: ${
+                        hasData ? "#155724" : "#e65100"
+                      }; opacity: 0.8;">
+                        ${
+                          hasData
+                            ? `${
+                                layout.qHyperCube?.qDimensionInfo?.length || 0
+                              } dimensions, ${
+                                layout.qHyperCube?.qMeasureInfo?.length || 0
+                              } measures`
+                            : "Add data fields in the Data panel"
+                        }
                       </div>
                     </div>
                                   </div>
 
                 <!-- Step 4: Prompts -->
-                <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 16px; padding: 12px; background: ${hasPrompts ? '#e8f5e8' : '#fff3e0'}; border: 1px solid ${hasPrompts ? '#c3e6c3' : '#ffcc80'}; border-radius: 8px;">
-                  <div style="flex-shrink: 0; width: 24px; height: 24px; border-radius: 50%; background: ${hasPrompts ? '#28a745' : '#ff9800'}; color: white; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: bold;">
-                    ${hasPrompts ? '✓' : '4'}
+                <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 16px; padding: 12px; background: ${
+                  hasPrompts ? "#e8f5e8" : "#fff3e0"
+                }; border: 1px solid ${
+              hasPrompts ? "#c3e6c3" : "#ffcc80"
+            }; border-radius: 8px;">
+                  <div style="flex-shrink: 0; width: 24px; height: 24px; border-radius: 50%; background: ${
+                    hasPrompts ? "#28a745" : "#ff9800"
+                  }; color: white; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: bold;">
+                    ${hasPrompts ? "✓" : "4"}
                   </div>
                   <div style="flex: 1;">
-                    <div style="font-weight: 600; font-size: 13px; color: ${hasPrompts ? '#155724' : '#e65100'};">
-                      ${hasPrompts ? 'Prompts Configured ✓' : 'Add AI Prompts'}
+                    <div style="font-weight: 600; font-size: 13px; color: ${
+                      hasPrompts ? "#155724" : "#e65100"
+                    };">
+                      ${hasPrompts ? "Prompts Configured ✓" : "Add AI Prompts"}
                     </div>
-                    <div style="font-size: 11px; color: ${hasPrompts ? '#155724' : '#e65100'}; opacity: 0.8;">
-                      ${hasPrompts ? 'System and user prompts are ready' : 'Click "Configure Prompts & Field Mapping" to add prompts'}
+                    <div style="font-size: 11px; color: ${
+                      hasPrompts ? "#155724" : "#e65100"
+                    }; opacity: 0.8;">
+                      ${
+                        hasPrompts
+                          ? "System and user prompts are ready"
+                          : 'Click "Configure Prompts & Field Mapping" to add prompts'
+                      }
                     </div>
                   </div>
                 </div>
@@ -4456,7 +4861,7 @@ export default function supernova() {
           `;
           document.head.appendChild(style);
 
-          // Generate button handler
+          // UPDATED: Enhanced handleGenerate function with better error handling
           const handleGenerate = async () => {
             const validation = await validateSelections(layout, app);
             const responseDiv = element.querySelector("#llmResponse");
@@ -4464,10 +4869,7 @@ export default function supernova() {
 
             if (!validation.valid) {
               if (responseDiv) {
-                responseDiv.innerHTML = generateValidationErrorHTML(
-                  validation,
-                  props
-                );
+                responseDiv.innerHTML = generateValidationErrorHTML(validation, props);
               }
               return;
             }
@@ -4475,8 +4877,7 @@ export default function supernova() {
             // Disable button and show loading
             if (generateButton) {
               generateButton.disabled = true;
-              generateButton.style.background =
-                "linear-gradient(135deg, #9ca3af 0%, #6b7280 100%)";
+              generateButton.style.background = "linear-gradient(135deg, #9ca3af 0%, #6b7280 100%)";
               generateButton.innerHTML = `<span style="margin-right: 6px;">⏳</span><span>Analyzing...</span>`;
             }
 
@@ -4491,105 +4892,138 @@ export default function supernova() {
             }
 
             try {
-              // Get and process prompts
+              // Step 1: Get and process prompts
               let systemPrompt = props.systemPrompt || "";
               let userPrompt = props.userPrompt || "";
 
-              // Replace dynamic fields using the enhanced function with actual field names
+              console.log("🔍 Original prompts:", { 
+                systemPrompt: systemPrompt.substring(0, 100) + "...", 
+                userPrompt: userPrompt.substring(0, 100) + "..." 
+              });
+
+              // Step 2: Replace dynamic fields using the enhanced function
               systemPrompt = replaceDynamicFieldsWithMappings(systemPrompt, layout);
               userPrompt = replaceDynamicFieldsWithMappings(userPrompt, layout);
 
+              console.log("🔍 After field replacement:", { 
+                systemPrompt: systemPrompt.substring(0, 100) + "...", 
+                userPrompt: userPrompt.substring(0, 100) + "..." 
+              });
+
+              // Step 3: Build full prompt
               let fullPrompt = userPrompt;
-              if (systemPrompt) {
+              if (systemPrompt && systemPrompt.trim()) {
                 fullPrompt = systemPrompt + "\n\n" + userPrompt;
               }
 
-              // Add data context if available
-              if (layout.qHyperCube?.qDataPages?.[0]?.qMatrix?.length > 0) {
-                fullPrompt += "\n\nData Context:\n";
-                const matrix = layout.qHyperCube.qDataPages[0].qMatrix;
+                          // Step 4: Add data context if available (SIMPLIFIED to avoid size issues)
+            if (layout.qHyperCube?.qDataPages?.[0]?.qMatrix?.length > 0) {
+              const matrix = layout.qHyperCube.qDataPages[0].qMatrix;
+              
+              // Only add a small sample of data to keep prompt size manageable
+              fullPrompt += "\n\nData Sample:\n";
+              
+              // Add just the first few rows as context
+              const maxRows = Math.min(matrix.length, 10); // Reduced to just 10 rows
+              matrix.slice(0, maxRows).forEach((row, idx) => {
+                const rowData = row.map((cell) => cell.qText || cell.qNum || "").join(", ");
+                fullPrompt += `Row ${idx + 1}: ${rowData}\n`;
+              });
 
-                // Add headers
-                if (
-                  layout.qHyperCube.qDimensionInfo?.length ||
-                  layout.qHyperCube.qMeasureInfo?.length
-                ) {
-                  const headers = [
-                    ...layout.qHyperCube.qDimensionInfo.map(
-                      (d) => d.qFallbackTitle
-                    ),
-                    ...layout.qHyperCube.qMeasureInfo.map(
-                      (m) => m.qFallbackTitle
-                    ),
-                  ];
-                  fullPrompt += headers.join(", ") + "\n";
-                }
+              if (matrix.length > maxRows) {
+                fullPrompt += `... and ${matrix.length - maxRows} more rows available\n`;
+              }
+            }
 
-                // Add data rows
-                matrix.forEach((row, idx) => {
-                  if (idx < 100) {
-                    fullPrompt +=
-                      row
-                        .map((cell) => cell.qText || cell.qNum || "")
-                        .join(", ") + "\n";
-                  }
-                });
+              console.log("📝 Final prompt length:", fullPrompt.length);
+              console.log("🔍 Final prompt preview:", fullPrompt.substring(0, 300) + "...");
 
-                if (matrix.length > 100) {
-                  fullPrompt += `... and ${matrix.length - 100} more rows\n`;
-                }
+              // Step 5: Validate prompt length and truncate if needed
+              if (fullPrompt.length > 50000) { // More conservative limit
+                console.warn("⚠️ Prompt is large, truncating...");
+                fullPrompt = fullPrompt.substring(0, 45000) + "\n\n[Note: Content truncated due to size limits]";
               }
 
-              // Escape for JSON
-              const escapedPrompt = fullPrompt
-                .replace(/\\/g, "\\\\")
-                .replace(/"/g, '\\"')
-                .replace(/'/g, "\\'")
-                .replace(/\n/g, "\\n")
-                .replace(/\r/g, "\\r");
+              // Step 6: Build and validate expression
+              const expression = buildLLMExpression(fullPrompt, props);
 
-              // Build expression
-              const expression = `endpoints.ScriptEvalStr(
-                '{"RequestType":"endpoint",
-                 "endpoint":{
-                   "connectionname":"${props.connectionName}",
-                   "column":"text",
-                   "parameters":{
-                     "temperature":"${props.temperature}",
-                     "Top K":"${props.topK}",
-                     "Top P":"${props.topP}",
-                     "max_tokens":"${props.maxTokens}"
-                   }}}',
-                '${escapedPrompt}'
-              )`;
+              // Step 7: Execute with timeout
+              console.log("🚀 Executing expression...");
+              const timeoutPromise = new Promise((_, reject) => 
+                setTimeout(() => reject(new Error("Request timeout after 30 seconds")), 30000)
+              );
+              
+              const evaluatePromise = app.evaluate({ qExpression: expression });
+              
+              const response = await Promise.race([evaluatePromise, timeoutPromise]);
+              
+              console.log("📥 Raw response from Qlik:", response);
+              
+              // Step 8: Process response
+              let responseText = "";
+              if (response && typeof response === "object") {
+                responseText = response.qText || response.qNum?.toString() || JSON.stringify(response);
+              } else if (response) {
+                responseText = response.toString();
+              }
 
-              // Execute
-              const response = await app.evaluate({ qExpression: expression });
-              const responseText =
-                response?.qText || response || "No response received";
+              if (!responseText || responseText.trim() === "") {
+                throw new Error("Empty response received from LLM service");
+              }
 
-              // Display result
+              // Check for Qlik expression errors
+              if (responseText.includes("Error in expression") || 
+                  responseText.includes("') expected") ||
+                  responseText.includes("Syntax error")) {
+                throw new Error("Qlik expression error: " + responseText);
+              }
+
+              console.log("✅ Final response text:", responseText.substring(0, 200) + "...");
+
+              // Step 9: Display result
               if (responseDiv) {
                 responseDiv.innerHTML = `
-                  <div style="word-wrap: break-word; line-height: 1.6; text-align: left; padding: 12px; overflow-y: scroll; height: 220px; scrollbar-width: thin; scrollbar-color: #9ca3af #f1f3f4;" class="analysis-content">
-                    <div style="white-space: pre-wrap;">${responseText.replace(
-                      /\n/g,
-                      "<br>"
-                    )}</div>
+                  <div style="word-wrap: break-word; line-height: 1.6; text-align: left; padding: 12px; overflow-y: auto; height: 220px; scrollbar-width: thin; scrollbar-color: #9ca3af #f1f3f4;" class="analysis-content">
+                    <div style="white-space: pre-wrap;">${responseText.replace(/\n/g, "<br>")}</div>
                   </div>
                 `;
               }
+
             } catch (err) {
-              console.error("LLM Error:", err);
+              console.error("❌ LLM Error:", err);
+              console.error("❌ Error stack:", err.stack);
+
+              // Enhanced error handling
+              let errorMessage = "Failed to generate response";
+              let errorDetails = "";
+
+              if (err.message) {
+                if (err.message.includes("') expected")) {
+                  errorMessage = "Expression syntax error";
+                  errorDetails = "There's a syntax issue in the generated expression. This usually happens with special characters in prompts.";
+                } else if (err.message.includes("timeout")) {
+                  errorMessage = "Request timed out";
+                  errorDetails = "The AI service took too long to respond. Please try again.";
+                } else if (err.message.includes("Connection")) {
+                  errorMessage = "Connection error";
+                  errorDetails = "Check your connection name and ensure the Claude SSE endpoint is properly configured.";
+                } else {
+                  errorMessage = err.message;
+                  errorDetails = "Check the browser console for more details.";
+                }
+              }
 
               if (responseDiv) {
                 responseDiv.innerHTML = `
                   <div style="background: #fef2f2; border: 1px solid #fca5a5; border-radius: 8px; padding: 12px; color: #dc2626; text-align: left; line-height: 1.5; font-size: 13px; word-wrap: break-word; overflow-wrap: break-word;">
-                    <div style="font-weight: 600; margin-bottom: 4px;">⚠️ Error</div>
-                    ${err.message || "Failed to generate response"}
-                    <div style="margin-top: 8px; font-size: 11px; opacity: 0.8;">
-                      Check your connection name and ensure the Claude SSE endpoint is properly configured.
-                    </div>
+                    <div style="font-weight: 600; margin-bottom: 4px;">⚠️ ${errorMessage}</div>
+                    <div style="margin-bottom: 8px;">${errorDetails}</div>
+                    <details style="margin-top: 8px;">
+                      <summary style="cursor: pointer; font-size: 11px; opacity: 0.8;">Technical Details</summary>
+                      <div style="margin-top: 4px; font-size: 11px; font-family: monospace; background: rgba(0,0,0,0.05); padding: 8px; border-radius: 4px; overflow-wrap: break-word;">
+                        ${err.message || "Unknown error"}
+                      </div>
+                    </details>
                   </div>
                 `;
               }
@@ -4601,8 +5035,7 @@ export default function supernova() {
                 generateButton.style.color = "#6c757d";
                 generateButton.style.cursor = "not-allowed";
                 generateButton.style.boxShadow = "none";
-                generateButton.innerHTML =
-                  '<span style="font-size: 14px;"></span><span>Analysis Complete</span>';
+                generateButton.innerHTML = '<span style="font-size: 14px;">✅</span><span>Analysis Complete</span>';
               }
             }
           };
@@ -4614,7 +5047,9 @@ export default function supernova() {
           }
 
           // Add Smart Mapping button event listener
-          const openSmartMappingBtn = element.querySelector("#openSmartMappingBtn");
+          const openSmartMappingBtn = element.querySelector(
+            "#openSmartMappingBtn"
+          );
           if (openSmartMappingBtn) {
             openSmartMappingBtn.onclick = () => {
               openSmartFieldMappingModal({ props: layout?.props || {} });
@@ -4630,3 +5065,4 @@ export default function supernova() {
     },
   };
 }
+

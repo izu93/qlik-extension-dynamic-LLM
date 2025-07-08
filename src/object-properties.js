@@ -32,7 +32,7 @@ export default {
     // Claude-specific properties
     connectionType: "claude", // Always Claude for this streamlined version
     connectionName:
-      "CSO AI Practice - Churn ML Project Workspace:Anthropic_Claude35Sonnet_ChurnML", // Claude SSE connection name
+      "Churn Analytics:Anthropic_Claude35Sonnet_ChurnML", // Claude SSE connection name
     systemPrompt: "", // System-level instructions for Claude
     userPrompt: "", // User's query/prompt for Claude with {{fieldName}} placeholders
     temperature: 0.7, // Controls randomness in responses (0-1)
