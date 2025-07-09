@@ -4877,7 +4877,7 @@ export default function supernova() {
           ) {
             // Enhanced Configuration needed with step-by-step guidance
             const hasConnection = !!props.connectionName;
-            const hasValidation = !!props.enableCustomValidation;
+            const hasValidation = !!props.enableCustomValidation && !!props.customValidationExpression && props.customValidationExpression.trim() !== "";
             const hasData = !!(
               layout.qHyperCube?.qDimensionInfo?.length ||
               layout.qHyperCube?.qMeasureInfo?.length

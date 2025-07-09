@@ -62,6 +62,27 @@ export default {
             rows: 2,
           },
 
+          // Expression validation status indicator
+          validationStatus: {
+            type: "string",
+            component: "text",
+            label: "Expression Status",
+            show: function (data) {
+              if (data.props?.enableCustomValidation !== true) {
+                return false;
+              }
+              
+              const expression = data.props?.customValidationExpression || "";
+              const hasExpression = expression.trim() !== "";
+              
+              if (hasExpression) {
+                return "✅ Custom validation expression configured";
+              } else {
+                return "⚠️ Please enter a validation expression above";
+              }
+            },
+          },
+
           // Helper text with examples - Using textarea for better display
           validationHelp: {
             type: "string",
