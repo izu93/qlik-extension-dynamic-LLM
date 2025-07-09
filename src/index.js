@@ -1502,13 +1502,21 @@ export default function supernova() {
                 textarea: textarea,
                 textareaId: textarea.id,
               };
+              console.log("🔍 SETTING selectedTextInfo from handleTextSelectionStrict:", selectedTextInfo);
 
               // Visual feedback
               console.log("✅ STRICT: Stored valid selection info:", selectedTextInfo);
+              console.log("🔍 STRICT: selectedTextInfo details:", {
+                text: selectedTextInfo.text,
+                textareaId: selectedTextInfo.textareaId,
+                start: selectedTextInfo.start,
+                end: selectedTextInfo.end
+              });
               textarea.classList.add("has-selection");
 
               // Show field selector popup with additional delay
               setTimeout(() => {
+                console.log("🔍 STRICT: About to show field selector with selectedTextInfo:", selectedTextInfo);
                 showFieldSelector(selectedText);
               }, 200);
 
@@ -1520,7 +1528,13 @@ export default function supernova() {
             }
           } else {
             console.log("❌ STRICT: Selection did not meet validation criteria");
-            selectedTextInfo = null;
+            // 🔧 CRITICAL FIX: Don't clear selectedTextInfo if field selector is open
+            if (!window.fieldSelectorOpen) {
+              console.log("🔍 CLEARING selectedTextInfo from handleTextSelectionStrict (validation failed)");
+              selectedTextInfo = null;
+            } else {
+              console.log("🔍 PROTECTING selectedTextInfo - field selector is open");
+            }
             // Remove selection class from all textareas
             document.querySelectorAll(".smart-mapping-textarea").forEach((ta) => {
               ta.classList.remove("has-selection");
@@ -1535,6 +1549,8 @@ export default function supernova() {
 
       function setupTextSelectionHandlers() {
         const textareas = document.querySelectorAll(".smart-mapping-textarea");
+        
+        console.log("🔧 Setting up text selection handlers for", textareas.length, "textareas");
 
         textareas.forEach((textarea) => {
           // Remove existing listeners to avoid duplicates
@@ -1577,12 +1593,16 @@ export default function supernova() {
           // Trigger field detection after paste
           detectAndDisplayFields(currentModalLayout);
 
+          // 🔧 CRITICAL FIX: Re-setup event handlers after paste to ensure functionality works
+          setupTextSelectionHandlers();
+          setupDragDropHandlers();
+
           // Update all displays
           updateActiveMappingsDisplay();
           updateFieldTagStates();
           updateMappingStats();
 
-          console.log("Paste processing complete");
+          console.log("Paste processing complete - handlers re-setup");
         }, 100);
       }
 
@@ -1730,7 +1750,13 @@ export default function supernova() {
             );
           } else {
             console.log("❌ Selection did not meet validation criteria");
-            selectedTextInfo = null;
+            // 🔧 CRITICAL FIX: Don't clear selectedTextInfo if field selector is open
+            if (!window.fieldSelectorOpen) {
+              console.log("🔍 CLEARING selectedTextInfo from handleTextSelection (validation failed)");
+              selectedTextInfo = null;
+            } else {
+              console.log("🔍 PROTECTING selectedTextInfo - field selector is open");
+            }
             // Remove selection class from all textareas
             document.querySelectorAll(".smart-mapping-textarea").forEach((ta) => {
               ta.classList.remove("has-selection");
@@ -2399,6 +2425,10 @@ export default function supernova() {
 
         // Show popup
         popup.style.display = "block";
+        
+        // 🔧 CRITICAL FIX: Mark that field selector is open to prevent selectedTextInfo from being cleared
+        window.fieldSelectorOpen = true;
+        console.log("🔍 Field selector opened, protecting selectedTextInfo:", selectedTextInfo);
       }
 
       function hideFieldSelector() {
@@ -2406,6 +2436,10 @@ export default function supernova() {
         if (popup) {
           popup.style.display = "none";
         }
+        
+        // 🔧 CRITICAL FIX: Mark that field selector is closed
+        window.fieldSelectorOpen = false;
+        console.log("🔍 Field selector closed");
       }
 
       function populateFieldSelectorOptions() {
@@ -2487,9 +2521,22 @@ export default function supernova() {
 
       // Global functions for field selector
       window.selectField = function (fieldName, fieldType) {
+        console.log("🔍 selectField called:", { fieldName, fieldType, selectedTextInfo });
+        
         if (selectedTextInfo) {
+          console.log("✅ selectedTextInfo exists, creating mapping");
           createFieldMapping(fieldName, fieldType, selectedTextInfo);
           hideFieldSelector();
+        } else {
+          console.error("❌ selectedTextInfo is null - cannot create mapping");
+          console.log("🔍 Current state:", {
+            selectedTextInfo,
+            activeMappings: activeMappings.length,
+            currentModalLayout: !!currentModalLayout
+          });
+          
+          // Show user-friendly error
+          alert("⚠️ No text selected. Please select text in the prompt first, then click on a field.");
         }
       };
 
@@ -2632,6 +2679,29 @@ export default function supernova() {
                 
                 <!-- Middle Panel: Prompts -->
                 <div class="smart-mapping-prompts-panel">
+                  <!-- User Instructions -->
+                  <div class="smart-mapping-instructions" style="
+                    background: #e3f2fd; 
+                    border: 1px solid #bbdefb; 
+                    border-radius: 8px; 
+                    padding: 12px 16px; 
+                    margin-bottom: 16px; 
+                    font-size: 13px; 
+                    color: #1565c0;
+                    line-height: 1.4;
+                  ">
+                    <div style="display: flex; align-items: center; margin-bottom: 8px;">
+                      <span style="font-size: 16px; margin-right: 8px;">💡</span>
+                      <strong>How to Map Fields:</strong>
+                    </div>
+                    <div style="margin-left: 24px;">
+                      1. <strong>Paste</strong> your prompts in the text areas below<br>
+                      2. <strong>Select/highlight</strong> any text you want to map to a field<br>
+                      3. <strong>Click</strong> on a field from the popup that appears<br>
+                      4. <strong>Save</strong> your mappings when done
+                    </div>
+                  </div>
+                  
                   <div class="smart-mapping-prompt-section">
                     <div class="smart-mapping-prompt-header">
                       System Prompt
@@ -3850,6 +3920,7 @@ export default function supernova() {
           
           // 🔧 CRITICAL FIX: Don't clear activeMappings here - they should persist!
           // activeMappings = []; // REMOVED: This was causing the green checkmarks to disappear
+          console.log("🔍 CLEARING selectedTextInfo from closeSmartFieldMappingModal");
           selectedTextInfo = null;
           currentFieldSuggestions = [];
           
@@ -4096,15 +4167,22 @@ export default function supernova() {
           }
 
           // Apply saved data to layout
-          if (layout && layout.props) {
+          if (layout) {
+            // 🔧 CRITICAL FIX: Ensure props object exists
+            if (!layout.props) {
+              layout.props = {};
+            }
             layout.props.systemPrompt = data.systemPrompt || "";
             layout.props.userPrompt = data.userPrompt || "";
             layout.props.fieldMappings = data.fieldMappings || [];
-            console.log("Applied saved data to layout props:", {
+            console.log("✅ Applied saved data to layout props:", {
               systemPrompt: layout.props.systemPrompt,
               userPrompt: layout.props.userPrompt,
               fieldMappings: layout.props.fieldMappings,
+              fieldMappingsCount: layout.props.fieldMappings.length
             });
+          } else {
+            console.warn("⚠️ No layout available to apply saved data");
           }
 
           console.log("✅ Loaded saved configuration from localStorage");
@@ -4155,10 +4233,18 @@ export default function supernova() {
         // Try to load from localStorage first, then fallback to data props
         const loadedFromStorage = loadSavedConfiguration();
 
+        // 🔧 CRITICAL FIX: Ensure we get the most up-to-date layout after loading from storage
+        const currentLayout = loadedFromStorage ? layout : freshLayout;
+        
+        // 🔧 ADDITIONAL FIX: Ensure currentLayout has props object
+        if (currentLayout && !currentLayout.props) {
+          currentLayout.props = {};
+        }
+
         const systemPrompt =
-          freshLayout?.props?.systemPrompt || data?.props?.systemPrompt || "";
+          currentLayout?.props?.systemPrompt || data?.props?.systemPrompt || "";
         const userPrompt =
-          freshLayout?.props?.userPrompt || data?.props?.userPrompt || "";
+          currentLayout?.props?.userPrompt || data?.props?.userPrompt || "";
 
         document.getElementById("smartMappingSystemPrompt").value =
           systemPrompt;
@@ -4169,13 +4255,20 @@ export default function supernova() {
 
         // Reset active mappings for fresh start
         activeMappings = [];
-        selectedTextInfo = null;
+        console.log("🔍 CLEARING selectedTextInfo from openSmartFieldMappingModal (fresh start)");
+        selectedTextInfo = null; // Reset selection state for fresh start
 
         // Load saved field mappings and convert to active mappings
         const savedMappings =
-          freshLayout?.props?.fieldMappings || data?.props?.fieldMappings || [];
+          currentLayout?.props?.fieldMappings || data?.props?.fieldMappings || [];
 
-        console.log("Loading saved mappings:", savedMappings);
+        console.log("🔍 Debug modal opening:", {
+          loadedFromStorage,
+          freshLayoutProps: freshLayout?.props,
+          currentLayoutProps: currentLayout?.props,
+          savedMappingsCount: savedMappings.length,
+          savedMappings: savedMappings
+        });
 
         if (savedMappings.length > 0) {
           // Convert saved mappings to active mappings format with proper ID generation
@@ -4630,12 +4723,17 @@ export default function supernova() {
           // Real-time field detection as user types/pastes
           detectAndDisplayFields(currentModalLayout);
 
+          // 🔧 CRITICAL FIX: Ensure event handlers are properly set up after content changes
+          // This is especially important after clearing and pasting new content
+          setupTextSelectionHandlers();
+          setupDragDropHandlers();
+
           // Update displays to reflect any changes
           updateActiveMappingsDisplay();
           updateFieldTagStates();
           updateMappingStats();
 
-          console.log("Prompt change processing complete");
+          console.log("Prompt change processing complete - handlers re-setup");
         }, 300); // 300ms debounce
       }
 
