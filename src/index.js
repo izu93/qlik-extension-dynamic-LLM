@@ -1444,6 +1444,12 @@ export default function supernova() {
         const textarea = event.target;
         const now = Date.now();
         
+        // 🔧 FIX: Only work in select mode
+        if (currentMappingMode !== "select") {
+          console.log("🚫 Ignoring text selection - not in select mode");
+          return;
+        }
+        
         // 🔧 FIX: Ignore right-click events to allow spell check context menu
         if (event.type === 'mouseup' && event.button === 2) {
           console.log("🚫 Ignoring right-click event to allow spell check");
@@ -1690,6 +1696,12 @@ export default function supernova() {
       function handleTextSelection(event) {
         const textarea = event.target;
         
+        // 🔧 FIX: Only work in select mode
+        if (currentMappingMode !== "select") {
+          console.log("🚫 Ignoring text selection - not in select mode");
+          return;
+        }
+        
         // 🔧 FIX: Ignore right-click events to allow spell check context menu
         if (event.type === 'mouseup' && event.button === 2) {
           console.log("🚫 Ignoring right-click event to allow spell check");
@@ -1782,8 +1794,9 @@ export default function supernova() {
           );
 
           fieldTags.forEach((tag) => {
-            tag.draggable = true;
-            tag.style.cursor = "grab";
+            // 🔧 CRITICAL FIX: Only make draggable in drag mode
+            tag.draggable = currentMappingMode === "drag";
+            tag.style.cursor = currentMappingMode === "drag" ? "grab" : "pointer";
 
             // Remove existing listeners to avoid duplicates
             tag.removeEventListener("dragstart", handleFieldDragStart);
@@ -1847,9 +1860,9 @@ export default function supernova() {
         // Visual feedback
         fieldTag.classList.add("dragging");
 
-        // Show drop zones if in select mode and text is selected
-        if (currentMappingMode === "select" && selectedTextInfo) {
-          console.log("Showing drop zones for selected text");
+        // 🔧 CRITICAL FIX: Only show drop zones in drag mode
+        if (currentMappingMode === "drag") {
+          console.log("Showing drop zones for drag & drop mode");
           showDropZones();
         } else {
           console.log(
@@ -1868,7 +1881,11 @@ export default function supernova() {
       }
 
       function handleTextareaDragOver(event) {
-        if (currentMappingMode !== "select" || !selectedTextInfo) return;
+        // 🔧 CRITICAL FIX: Only allow drag over in drag mode
+        if (currentMappingMode !== "drag") {
+          console.log("🚫 Drag over blocked - not in drag mode");
+          return;
+        }
 
         event.preventDefault();
         event.dataTransfer.dropEffect = "copy";
@@ -1888,8 +1905,6 @@ export default function supernova() {
         const textarea = event.target;
         textarea.classList.remove("drag-over");
 
-        if (currentMappingMode !== "select" || !selectedTextInfo) return;
-
         const fieldName = event.dataTransfer.getData(
           "application/x-field-name"
         );
@@ -1897,13 +1912,146 @@ export default function supernova() {
           "application/x-field-type"
         );
 
-        if (
-          fieldName &&
-          selectedTextInfo &&
-          selectedTextInfo.textarea === textarea
-        ) {
-          createFieldMapping(fieldName, fieldType, selectedTextInfo);
+        if (!fieldName) return;
+
+        // 🔧 ENHANCEMENT: Check current mapping mode and handle accordingly
+        if (currentMappingMode === "select") {
+          // Select & Map mode: only work if text is selected
+          if (selectedTextInfo && selectedTextInfo.textarea === textarea) {
+            createFieldMapping(fieldName, fieldType, selectedTextInfo);
+          } else {
+            updateValidationMessage("❌ Please select text first in Select & Map mode");
+            setTimeout(() => {
+              updateValidationMessage("Ready to create field mappings - select text in your prompts");
+            }, 2000);
+          }
+        } else if (currentMappingMode === "drag") {
+          // Drag & Drop mode: insert {{fieldName}} at drop position
+          handleDirectFieldDrop(event, textarea, fieldName, fieldType);
         }
+      }
+
+      function handleDirectFieldDrop(event, textarea, fieldName, fieldType) {
+        // Get cursor position from the drop event
+        const rect = textarea.getBoundingClientRect();
+        const x = event.clientX - rect.left;
+        const y = event.clientY - rect.top;
+        
+        // Calculate approximate cursor position in the textarea
+        const style = window.getComputedStyle(textarea);
+        const lineHeight = parseInt(style.lineHeight);
+        const fontSize = parseInt(style.fontSize);
+        const paddingTop = parseInt(style.paddingTop);
+        const paddingLeft = parseInt(style.paddingLeft);
+        
+        // Focus the textarea to ensure we can get/set cursor position
+        textarea.focus();
+        
+        // Get current cursor position or use end of text as fallback
+        let cursorPosition = textarea.selectionStart;
+        
+        // Try to estimate position from mouse coordinates (rough approximation)
+        if (y > paddingTop && x > paddingLeft) {
+          const lineNumber = Math.floor((y - paddingTop) / lineHeight);
+          const charWidth = fontSize * 0.6; // Rough approximation
+          const charPosition = Math.floor((x - paddingLeft) / charWidth);
+          
+          // Find the actual position in the text
+          const lines = textarea.value.split('\n');
+          let estimatedPosition = 0;
+          for (let i = 0; i < Math.min(lineNumber, lines.length - 1); i++) {
+            estimatedPosition += lines[i].length + 1; // +1 for newline
+          }
+          if (lineNumber < lines.length) {
+            estimatedPosition += Math.min(charPosition, lines[lineNumber] ? lines[lineNumber].length : 0);
+          }
+          
+          cursorPosition = Math.min(estimatedPosition, textarea.value.length);
+        }
+        
+        // Generate field placeholder
+        const placeholderName = fieldName.toUpperCase().replace(/[^A-Z0-9]/g, "_");
+        const placeholder = `{{${placeholderName}}}`;
+        
+        // Insert the placeholder at the cursor position
+        const currentValue = textarea.value;
+        const newValue = currentValue.substring(0, cursorPosition) + placeholder + currentValue.substring(cursorPosition);
+        textarea.value = newValue;
+        
+        // Set cursor position after the inserted placeholder
+        textarea.setSelectionRange(cursorPosition + placeholder.length, cursorPosition + placeholder.length);
+        
+        // 🔧 NEW: Add visual highlighting to the inserted field
+        highlightInsertedField(textarea, placeholder, cursorPosition);
+        
+        // Create mapping object for tracking
+        const mapping = {
+          id: `mapping_${Date.now()}_${activeMappings.length}_${Math.floor(Math.random() * 10000)}`,
+          placeholder: placeholder,
+          fieldName: fieldName,
+          fieldType: fieldType,
+          originalText: placeholder, // For direct drops, original text is the placeholder itself
+          source: textarea.id === "smartMappingSystemPrompt" ? "system" : "user",
+          textareaId: textarea.id,
+          isDirect: true // Flag to indicate this was a direct drop
+        };
+        
+        console.log("✅ Created direct drop mapping:", mapping);
+        
+        // Add to active mappings
+        activeMappings.push(mapping);
+        
+        // Update displays
+        updateActiveMappingsDisplay();
+        updateFieldTagStates();
+        updateMappingStats();
+        
+        // Success feedback
+        updateValidationMessage(`✅ Added field: {{${placeholderName}}} (${fieldName})`);
+        
+        setTimeout(() => {
+          updateValidationMessage("Ready to create field mappings - select text in your prompts");
+        }, 3000);
+      }
+
+      function highlightInsertedField(textarea, placeholder, insertPosition) {
+        // Add a temporary highlight class to the textarea with green border
+        textarea.classList.add('field-just-inserted');
+        
+        // Create a temporary highlight effect by briefly changing the background
+        const originalBackground = textarea.style.backgroundColor;
+        textarea.style.backgroundColor = '#e8f5e8';
+        textarea.style.transition = 'all 0.3s ease';
+        
+        // Remove the highlight after a short delay
+        setTimeout(() => {
+          textarea.style.backgroundColor = originalBackground;
+          textarea.classList.remove('field-just-inserted');
+        }, 2000);
+        
+        // Add a brief selection highlight to the inserted/mapped placeholder to make it stand out
+        setTimeout(() => {
+          const currentValue = textarea.value;
+          // Look for the placeholder starting from the insert position for better accuracy
+          let placeholderStart = currentValue.indexOf(placeholder, Math.max(0, insertPosition - 10));
+          
+          // If not found near the insert position, search the entire text
+          if (placeholderStart === -1) {
+            placeholderStart = currentValue.indexOf(placeholder);
+          }
+          
+          if (placeholderStart !== -1) {
+            textarea.focus();
+            textarea.setSelectionRange(placeholderStart, placeholderStart + placeholder.length);
+            
+            // Clear selection after showing the user where the field was inserted/mapped
+            setTimeout(() => {
+              textarea.setSelectionRange(placeholderStart + placeholder.length, placeholderStart + placeholder.length);
+            }, 1200);
+          }
+        }, 200);
+        
+        console.log(`🎨 Highlighted mapped field: ${placeholder} at position ${insertPosition} (mode: ${currentMappingMode})`);
       }
 
       function createFieldMapping(fieldName, fieldType, textInfo) {
@@ -1926,6 +2074,9 @@ export default function supernova() {
           currentValue.substring(textInfo.end);
 
         textarea.value = newValue;
+        
+        // 🔧 NEW: Add visual highlighting to the mapped field in Select & Map mode
+        highlightInsertedField(textarea, placeholder, textInfo.start);
 
         // FIXED: Better ID generation to ensure uniqueness
         const mapping = {
@@ -2679,26 +2830,42 @@ export default function supernova() {
                 
                 <!-- Middle Panel: Prompts -->
                 <div class="smart-mapping-prompts-panel">
-                  <!-- User Instructions -->
-                  <div class="smart-mapping-instructions" style="
-                    background: #e3f2fd; 
-                    border: 1px solid #bbdefb; 
+                  <!-- Mapping Mode Selector -->
+                  <div class="smart-mapping-mode-selector" style="
+                    background: #f8f9fa; 
+                    border: 1px solid #dee2e6; 
                     border-radius: 8px; 
-                    padding: 12px 16px; 
-                    margin-bottom: 16px; 
-                    font-size: 13px; 
-                    color: #1565c0;
-                    line-height: 1.4;
+                    padding: 16px; 
+                    margin-bottom: 16px;
                   ">
-                    <div style="display: flex; align-items: center; margin-bottom: 8px;">
-                      <span style="font-size: 16px; margin-right: 8px;">💡</span>
-                      <strong>How to Map Fields:</strong>
+                    <div style="display: flex; align-items: center; margin-bottom: 12px;">
+                      <span style="font-size: 16px; margin-right: 8px;">⚙️</span>
+                      <strong style="font-size: 14px; color: #495057;">Choose Mapping Mode:</strong>
                     </div>
-                    <div style="margin-left: 24px;">
-                      1. <strong>Paste</strong> your prompts in the text areas below<br>
-                      2. <strong>Select/highlight</strong> any text you want to map to a field<br>
-                      3. <strong>Click</strong> on a field from the popup that appears<br>
-                      4. <strong>Save</strong> your mappings when done
+                    <div style="display: flex; gap: 12px; margin-bottom: 12px;">
+                      <label style="display: flex; align-items: center; cursor: pointer; padding: 8px 12px; border: 2px solid #007bff; border-radius: 6px; background: #007bff; color: white;">
+                        <input type="radio" name="mappingMode" value="select" checked style="margin-right: 8px;">
+                        <span style="font-size: 13px; font-weight: 500;">📝 Select & Map</span>
+                      </label>
+                      <label style="display: flex; align-items: center; cursor: pointer; padding: 8px 12px; border: 2px solid #6c757d; border-radius: 6px; background: white; color: #6c757d;">
+                        <input type="radio" name="mappingMode" value="drag" style="margin-right: 8px;">
+                        <span style="font-size: 13px; font-weight: 500;">🖱️ Drag & Drop</span>
+                      </label>
+                    </div>
+                    <div id="modeInstructions" style="
+                      background: #e3f2fd; 
+                      border: 1px solid #bbdefb; 
+                      border-radius: 6px; 
+                      padding: 10px 12px; 
+                      font-size: 12px; 
+                      color: #1565c0;
+                      line-height: 1.4;
+                    ">
+                      <strong>Select & Map Mode:</strong><br>
+                      1. Paste your prompts below<br>
+                      2. Select/highlight text you want to map<br>
+                      3. Click on a field from the popup<br>
+                      4. Save your mappings when done
                     </div>
                   </div>
                   
@@ -3063,6 +3230,12 @@ export default function supernova() {
       .smart-mapping-textarea.has-selection {
         border-color: #2196f3 !important;
         box-shadow: 0 0 0 2px rgba(33, 150, 243, 0.2) !important;
+      }
+      
+      .smart-mapping-textarea.field-just-inserted {
+        border-color: #28a745 !important;
+        box-shadow: 0 0 0 3px rgba(40, 167, 69, 0.3) !important;
+        transition: all 0.3s ease !important;
       }
       
       .text-selected {
@@ -3895,8 +4068,17 @@ export default function supernova() {
         clearBtn?.addEventListener("click", handleClearAllMappings);
         saveBtn?.addEventListener("click", handleSave);
 
+        // 🔧 NEW: Mode selector event listeners
+        const modeRadios = document.querySelectorAll('input[name="mappingMode"]');
+        modeRadios.forEach(radio => {
+          radio.addEventListener('change', handleModeChange);
+        });
+
         // Setup text selection handlers
         setupTextSelectionHandlers();
+        
+        // Setup drag and drop handlers for textareas
+        setupTextareaDragHandlers();
 
         // Prompt text changes
         systemPrompt?.addEventListener("input", handlePromptChange);
@@ -3908,6 +4090,96 @@ export default function supernova() {
             closeSmartFieldMappingModal();
           }
         });
+      }
+
+      function handleModeChange(event) {
+        const selectedMode = event.target.value;
+        currentMappingMode = selectedMode;
+        
+        console.log("🔧 Mapping mode changed to:", selectedMode);
+        
+        // Update mode instructions
+        const instructionsDiv = document.getElementById("modeInstructions");
+        if (instructionsDiv) {
+          if (selectedMode === "select") {
+            instructionsDiv.innerHTML = `
+              <strong>Select & Map Mode:</strong><br>
+              1. Paste your prompts below<br>
+              2. Select/highlight text you want to map<br>
+              3. Click on a field from the popup<br>
+              4. Save your mappings when done
+            `;
+          } else if (selectedMode === "drag") {
+            instructionsDiv.innerHTML = `
+              <strong>Drag & Drop Mode:</strong><br>
+              1. Paste your prompts below<br>
+              2. Drag any field from the left panel<br>
+              3. Drop it anywhere in the text areas<br>
+              4. Save your mappings when done
+            `;
+          }
+        }
+        
+        // Update radio button styling
+        const modeRadios = document.querySelectorAll('input[name="mappingMode"]');
+        modeRadios.forEach(radio => {
+          const label = radio.closest('label');
+          if (radio.checked) {
+            label.style.background = '#007bff';
+            label.style.color = 'white';
+            label.style.borderColor = '#007bff';
+          } else {
+            label.style.background = 'white';
+            label.style.color = '#6c757d';
+            label.style.borderColor = '#6c757d';
+          }
+        });
+        
+        // Clear any existing selection when switching modes
+        selectedTextInfo = null;
+        document.querySelectorAll(".smart-mapping-textarea").forEach((ta) => {
+          ta.classList.remove("has-selection");
+        });
+        
+        // Update validation message
+        if (selectedMode === "select") {
+          updateValidationMessage("Select & Map mode: Select text in your prompts, then click on a field");
+        } else {
+          updateValidationMessage("Drag & Drop mode: Drag fields from left panel and drop anywhere in text");
+        }
+        
+        // 🔧 CRITICAL FIX: Update drag handlers when mode changes
+        updateDragHandlersForMode(selectedMode);
+      }
+      
+      function updateDragHandlersForMode(mode) {
+        const fieldTags = document.querySelectorAll(".smart-mapping-field-tag");
+        fieldTags.forEach((tag) => {
+          if (mode === "drag") {
+            tag.draggable = true;
+            tag.style.cursor = "grab";
+          } else {
+            tag.draggable = false;
+            tag.style.cursor = "pointer";
+          }
+        });
+        console.log(`🔧 Updated ${fieldTags.length} field tags for ${mode} mode`);
+      }
+      
+      function setupTextareaDragHandlers() {
+        const textareas = document.querySelectorAll(".smart-mapping-textarea");
+        textareas.forEach((textarea) => {
+          // Remove existing listeners to avoid duplicates
+          textarea.removeEventListener("dragover", handleTextareaDragOver);
+          textarea.removeEventListener("dragleave", handleTextareaDragLeave);
+          textarea.removeEventListener("drop", handleTextareaDrop);
+          
+          // Add new listeners
+          textarea.addEventListener("dragover", handleTextareaDragOver);
+          textarea.addEventListener("dragleave", handleTextareaDragLeave);
+          textarea.addEventListener("drop", handleTextareaDrop);
+        });
+        console.log(`🔧 Set up drag handlers for ${textareas.length} textareas`);
       }
 
       function closeSmartFieldMappingModal() {
@@ -4257,6 +4529,9 @@ export default function supernova() {
         activeMappings = [];
         console.log("🔍 CLEARING selectedTextInfo from openSmartFieldMappingModal (fresh start)");
         selectedTextInfo = null; // Reset selection state for fresh start
+        
+        // 🔧 NEW: Initialize mapping mode to "select" by default
+        currentMappingMode = "select";
 
         // Load saved field mappings and convert to active mappings
         const savedMappings =
@@ -4305,6 +4580,9 @@ export default function supernova() {
           // Setup all event handlers
           setupTextSelectionHandlers();
           setupDragDropHandlers();
+          
+          // 🔧 CRITICAL FIX: Update drag handlers for current mode after fields are loaded
+          updateDragHandlersForMode(currentMappingMode);
 
           // 🔧 CRITICAL FIX: Update all displays in the correct order
           updateActiveMappingsDisplay();
