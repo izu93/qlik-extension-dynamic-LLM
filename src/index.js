@@ -862,12 +862,12 @@ export default function supernova() {
       }
 
       // Update field detection display
-      function updateFieldDetectionDisplay(systemPrompt, userPrompt) {
+      function updateFieldDetectionDisplay(systemPrompt, userPrompt, currentLayout) {
         const detectedFields = detectPlaceholdersInPrompts(
           systemPrompt,
           userPrompt
         );
-        const availableFields = getAvailableFields(layout);
+        const availableFields = getAvailableFields(currentLayout);
         const suggestions = suggestFieldMappings(
           detectedFields,
           availableFields
@@ -1168,8 +1168,8 @@ export default function supernova() {
       }
 
       // Generate field options HTML for dropdowns
-      function getFieldOptionsHTML(selectedField = "") {
-        const availableFields = getAvailableFields(layout);
+      function getFieldOptionsHTML(selectedField = "", currentLayout = null) {
+        const availableFields = getAvailableFields(currentLayout || layout);
         let optionsHTML = "";
 
         // Add dimension options
@@ -1380,6 +1380,7 @@ export default function supernova() {
       let activeMappings = [];
       let selectedText = null;
       let selectedTextInfo = null;
+      let currentModalLayout = null; // Store current layout for modal context
 
       // ===== SELECT MODE WORKFLOW FUNCTIONS =====
 
@@ -1567,7 +1568,7 @@ export default function supernova() {
           restoreMappingsFromText();
 
           // Trigger field detection after paste
-          detectAndDisplayFields();
+          detectAndDisplayFields(currentModalLayout);
 
           // Update all displays
           updateActiveMappingsDisplay();
@@ -1608,7 +1609,7 @@ export default function supernova() {
             console.log(`Trying to restore mapping for: ${placeholder}`);
 
             // Try to find a matching field for this placeholder
-            const availableFields = getAvailableFields(layout);
+            const availableFields = getAvailableFields(currentModalLayout);
             const allFields = [
               ...availableFields.dimensions,
               ...availableFields.measures,
@@ -2395,7 +2396,7 @@ export default function supernova() {
       }
 
       function populateFieldSelectorOptions() {
-        const availableFields = getAvailableFields(layout);
+        const availableFields = getAvailableFields(currentModalLayout);
         const usedFields = new Set(activeMappings.map((m) => m.fieldName));
 
         // Populate dimensions
@@ -3820,64 +3821,6 @@ export default function supernova() {
         });
       }
 
-      function openSmartFieldMappingModal(data) {
-        const modal = document.getElementById("smartFieldMappingModal");
-        if (!modal) return;
-
-        // Load current prompts
-        const systemPrompt = data?.props?.systemPrompt || "";
-        const userPrompt = data?.props?.userPrompt || "";
-
-        document.getElementById("smartMappingSystemPrompt").value =
-          systemPrompt;
-        document.getElementById("smartMappingUserPrompt").value = userPrompt;
-
-        // Load available fields from current layout
-        loadAvailableFields();
-
-        // Detect fields in current prompts
-        detectAndDisplayFields();
-
-        // Load saved field mappings if they exist
-        const savedMappings = data?.props?.fieldMappings || [];
-
-        setTimeout(() => {
-          if (currentFieldSuggestions.length > 0) {
-            // Apply saved mappings first
-            if (savedMappings.length > 0) {
-              currentFieldSuggestions.forEach((suggestion) => {
-                const savedMapping = savedMappings.find(
-                  (saved) => saved.placeholder === suggestion.placeholder
-                );
-                if (savedMapping && savedMapping.mappedField) {
-                  suggestion.mappedField = savedMapping.mappedField;
-                }
-              });
-            }
-
-            // Then auto-apply high confidence mappings for any unmapped fields
-            const highConfidenceSuggestions = currentFieldSuggestions.filter(
-              (s) => s.confidence >= 80 && s.suggestedField && !s.mappedField
-            );
-
-            if (highConfidenceSuggestions.length > 0) {
-              highConfidenceSuggestions.forEach((suggestion) => {
-                suggestion.mappedField = suggestion.suggestedField.name;
-              });
-            }
-
-            // Update displays
-            updateDetectedFieldsList(currentFieldSuggestions);
-            updateFieldStats(currentFieldSuggestions, currentFieldSuggestions);
-            updateMappingValidation();
-          }
-        }, 100);
-
-        // Show modal
-        modal.classList.add("active");
-        document.body.style.overflow = "hidden";
-      }
-
       function closeSmartFieldMappingModal() {
         const modal = document.getElementById("smartFieldMappingModal");
         if (modal) {
@@ -3898,12 +3841,12 @@ export default function supernova() {
         }
       }
 
-      function loadAvailableFields() {
-        const availableFields = getAvailableFields(layout);
+      function loadAvailableFields(currentLayout) {
+        const availableFields = getAvailableFields(currentLayout);
         updateAvailableFieldsDisplay(availableFields);
       }
 
-      function detectAndDisplayFields() {
+      function detectAndDisplayFields(currentLayout) {
         const systemPrompt =
           document.getElementById("smartMappingSystemPrompt")?.value || "";
         const userPrompt =
@@ -3945,7 +3888,8 @@ export default function supernova() {
 
         currentFieldSuggestions = updateFieldDetectionDisplay(
           systemPrompt,
-          userPrompt
+          userPrompt,
+          currentLayout
         );
 
         // Update validation status
@@ -4157,6 +4101,9 @@ export default function supernova() {
         const modal = document.getElementById("smartFieldMappingModal");
         if (!modal) return;
 
+        // Store current layout for modal context
+        currentModalLayout = layout;
+
         // Debug: Show what's in localStorage
         const objectId = layout?.qInfo?.qId;
         console.log("Opening modal for object ID:", objectId);
@@ -4176,7 +4123,7 @@ export default function supernova() {
         document.getElementById("smartMappingUserPrompt").value = userPrompt;
 
         // Load available fields from current layout
-        loadAvailableFields();
+        loadAvailableFields(layout);
 
         // Reset active mappings for fresh start
         activeMappings = [];
@@ -4230,7 +4177,7 @@ export default function supernova() {
           updateMappingStats(); // This should show correct numbers
 
           // Initial field detection to catch any existing placeholders
-          detectAndDisplayFields();
+          detectAndDisplayFields(layout);
 
           // Show status based on loaded mappings
           if (loadedFromStorage) {
@@ -4676,6 +4623,7 @@ export default function supernova() {
 
           // Update global layout reference - THIS IS CRITICAL
           layout = freshLayout;
+          currentModalLayout = freshLayout; // Also update modal layout reference
 
           // Force refresh the available fields from the updated layout
           const availableFields = getAvailableFields(freshLayout);
@@ -5021,7 +4969,7 @@ export default function supernova() {
                       ${
                         hasPrompts
                           ? "System and user prompts are ready"
-                          : 'Click "Configure Prompts & Field Mapping" to add prompts'
+                          : "In LLM Configuration, click 'Prompts & Field Mapping' to add prompts"
                       }
                     </div>
                   </div>
@@ -5029,28 +4977,7 @@ export default function supernova() {
 
                 </div>
 
-                <!-- Action Button -->
-                <div style="text-align: center; margin-top: 24px;">
-                  <button id="openSmartMappingBtn" style="
-                    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-                    color: white;
-                    border: none;
-                    padding: 12px 24px;
-                    border-radius: 8px;
-                    font-size: 14px;
-                    font-weight: 600;
-                    cursor: pointer;
-                    box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
-                    transition: all 0.2s ease;
-                    display: flex;
-                    align-items: center;
-                    gap: 8px;
-                    margin: 0 auto;
-                  ">
-                    <span style="font-size: 16px;">🎯</span>
-                    <span>Configure Prompts & Field Mapping</span>
-                  </button>
-                </div>
+
 
 
               </div>
@@ -5144,10 +5071,7 @@ export default function supernova() {
               background: #6b7280;
             }
             
-            #openSmartMappingBtn:hover {
-              transform: translateY(-2px);
-              box-shadow: 0 6px 16px rgba(102, 126, 234, 0.4);
-            }
+
           `;
           document.head.appendChild(style);
 
@@ -5339,16 +5263,6 @@ export default function supernova() {
           const generateButton = element.querySelector("#generateButton");
           if (generateButton) {
             generateButton.onclick = handleGenerate;
-          }
-
-          // Add Smart Mapping button event listener
-          const openSmartMappingBtn = element.querySelector(
-            "#openSmartMappingBtn"
-          );
-          if (openSmartMappingBtn) {
-            openSmartMappingBtn.onclick = () => {
-              openSmartFieldMappingModal({ props: layout?.props || {} });
-            };
           }
 
           // NEW: Add modal to the page - FIX: Prevent duplicate creation

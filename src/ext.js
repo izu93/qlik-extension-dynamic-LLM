@@ -144,6 +144,7 @@ export default {
             defaultValue:
               "ℹ️ Uses external Claude SSE connection configured in data connection for advanced analysis.",
           },
+
           // NEW: Smart Field Mapping Button - Always show for Claude
           smartFieldMapping: {
             type: "string",
@@ -202,6 +203,7 @@ export default {
               }
             },
           },
+
           // NEW: Hidden field mappings storage
           fieldMappings: {
             type: "array",
