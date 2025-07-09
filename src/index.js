@@ -1444,6 +1444,12 @@ export default function supernova() {
         const textarea = event.target;
         const now = Date.now();
         
+        // 🔧 FIX: Ignore right-click events to allow spell check context menu
+        if (event.type === 'mouseup' && event.button === 2) {
+          console.log("🚫 Ignoring right-click event to allow spell check");
+          return;
+        }
+        
         // Prevent multiple rapid triggers
         if (now - lastClickTime < 200) {
           console.log("🚫 Ignoring rapid selection event");
@@ -1663,6 +1669,12 @@ export default function supernova() {
 
       function handleTextSelection(event) {
         const textarea = event.target;
+        
+        // 🔧 FIX: Ignore right-click events to allow spell check context menu
+        if (event.type === 'mouseup' && event.button === 2) {
+          console.log("🚫 Ignoring right-click event to allow spell check");
+          return;
+        }
         
         // Ultra-strict validation to prevent accidental triggers
         setTimeout(() => {
