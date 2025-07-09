@@ -151,10 +151,10 @@ export default {
             component: "button",
             label: "🔀Prompts & Field Mapping",
             ref: "props.openFieldMapping",
-            action: function (data) {
+            action: async function (data) {
               // This will trigger the modal
               if (window.openSmartFieldMappingModal) {
-                window.openSmartFieldMappingModal(data);
+                await window.openSmartFieldMappingModal(data);
               } else {
                 alert(
                   "Smart Field Mapping modal will be available in the next update."

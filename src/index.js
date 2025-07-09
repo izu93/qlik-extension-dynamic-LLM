@@ -1,4 +1,4 @@
-import { useElement, useLayout, useEffect, useApp } from "@nebula.js/stardust";
+import { useElement, useLayout, useEffect, useApp, useModel } from "@nebula.js/stardust";
 import objectProperties from "./object-properties";
 import extensionDefinition from "./ext";
 import dataConfiguration from "./data";
@@ -14,6 +14,7 @@ export default function supernova() {
       const element = useElement();
       const layout = useLayout();
       const app = useApp();
+      const model = useModel();
 
       // Enhanced field extraction that handles multiple fields
       const extractAllFieldsFromExpression = (customExpression) => {
@@ -2583,9 +2584,18 @@ export default function supernova() {
                   <div class="smart-mapping-section full-height">
                     <div class="smart-mapping-section-header">
                       Available Data Fields
-                      <button id="smartMappingRefreshBtn" class="smart-mapping-auto-map-btn" style="background: #17a2b8;">
-                        Refresh
-                      </button>
+                    </div>
+                    <div class="smart-mapping-field-note" style="
+                      background: #f8f9fa; 
+                      border: 1px solid #dee2e6; 
+                      border-radius: 4px; 
+                      padding: 8px 12px; 
+                      margin-bottom: 12px; 
+                      font-size: 11px; 
+                      color: #6c757d;
+                      line-height: 1.3;
+                    ">
+                      💡 <strong>Note:</strong> If fields are not appearing, try refreshing the page.
                     </div>
                     <div class="smart-mapping-available-fields full-height">
                       <div class="smart-mapping-field-group">
@@ -3791,7 +3801,6 @@ export default function supernova() {
         // FIX: Remove existing listeners to prevent accumulation
         const clearBtn = document.getElementById("smartMappingClearAllBtn");
         const saveBtn = document.getElementById("smartMappingSaveBtn");
-        const refreshBtn = document.getElementById("smartMappingRefreshBtn");
         const systemPrompt = document.getElementById("smartMappingSystemPrompt");
         const userPrompt = document.getElementById("smartMappingUserPrompt");
         const modal = document.getElementById("smartFieldMappingModal");
@@ -3799,12 +3808,10 @@ export default function supernova() {
         // Remove existing listeners if they exist
         if (clearBtn && clearBtn.onclick) clearBtn.onclick = null;
         if (saveBtn && saveBtn.onclick) saveBtn.onclick = null;
-        if (refreshBtn && refreshBtn.onclick) refreshBtn.onclick = null;
 
         // Add new listeners
         clearBtn?.addEventListener("click", handleClearAllMappings);
         saveBtn?.addEventListener("click", handleSave);
-        refreshBtn?.addEventListener("click", handleRefreshFields);
 
         // Setup text selection handlers
         setupTextSelectionHandlers();
@@ -4097,33 +4104,56 @@ export default function supernova() {
       }
 
       // UPDATED: Enhanced openSmartFieldMappingModal to load from localStorage
-      function openSmartFieldMappingModal(data) {
+      async function openSmartFieldMappingModal(data) {
         const modal = document.getElementById("smartFieldMappingModal");
         if (!modal) return;
 
+        // CRITICAL FIX: Get the most current layout from the object instead of using the potentially stale layout variable
+        let freshLayout = layout;
+        try {
+          // Try to get the absolute latest layout from the Qlik object
+          if (app && model) {
+            freshLayout = await model.getLayout();
+            console.log("🔄 Got fresh layout from object:", {
+              dimensions: freshLayout?.qHyperCube?.qDimensionInfo?.length || 0,
+              measures: freshLayout?.qHyperCube?.qMeasureInfo?.length || 0,
+              qDimensionInfo: freshLayout?.qHyperCube?.qDimensionInfo?.map(d => d.qFallbackTitle),
+              qMeasureInfo: freshLayout?.qHyperCube?.qMeasureInfo?.map(m => m.qFallbackTitle)
+            });
+          }
+        } catch (error) {
+          console.warn("Could not get fresh layout, using current layout:", error);
+        }
+
         // Store current layout for modal context
-        currentModalLayout = layout;
+        currentModalLayout = freshLayout;
+        console.log("🔄 Modal opened with layout:", {
+          dimensions: freshLayout?.qHyperCube?.qDimensionInfo?.length || 0,
+          measures: freshLayout?.qHyperCube?.qMeasureInfo?.length || 0,
+          qDimensionInfo: freshLayout?.qHyperCube?.qDimensionInfo?.map(d => d.qFallbackTitle),
+          qMeasureInfo: freshLayout?.qHyperCube?.qMeasureInfo?.map(m => m.qFallbackTitle)
+        });
 
         // Debug: Show what's in localStorage
-        const objectId = layout?.qInfo?.qId;
+        const objectId = freshLayout?.qInfo?.qId;
         console.log("Opening modal for object ID:", objectId);
         console.log("Data passed to modal:", data);
-        console.log("Current layout props:", layout?.props);
+        console.log("Current layout props:", freshLayout?.props);
 
         // Try to load from localStorage first, then fallback to data props
         const loadedFromStorage = loadSavedConfiguration();
 
         const systemPrompt =
-          layout?.props?.systemPrompt || data?.props?.systemPrompt || "";
+          freshLayout?.props?.systemPrompt || data?.props?.systemPrompt || "";
         const userPrompt =
-          layout?.props?.userPrompt || data?.props?.userPrompt || "";
+          freshLayout?.props?.userPrompt || data?.props?.userPrompt || "";
 
         document.getElementById("smartMappingSystemPrompt").value =
           systemPrompt;
         document.getElementById("smartMappingUserPrompt").value = userPrompt;
 
         // Load available fields from current layout
-        loadAvailableFields(layout);
+        loadAvailableFields(currentModalLayout);
 
         // Reset active mappings for fresh start
         activeMappings = [];
@@ -4131,7 +4161,7 @@ export default function supernova() {
 
         // Load saved field mappings and convert to active mappings
         const savedMappings =
-          layout?.props?.fieldMappings || data?.props?.fieldMappings || [];
+          freshLayout?.props?.fieldMappings || data?.props?.fieldMappings || [];
 
         console.log("Loading saved mappings:", savedMappings);
 
@@ -4177,7 +4207,7 @@ export default function supernova() {
           updateMappingStats(); // This should show correct numbers
 
           // Initial field detection to catch any existing placeholders
-          detectAndDisplayFields(layout);
+          detectAndDisplayFields(freshLayout);
 
           // Show status based on loaded mappings
           if (loadedFromStorage) {
@@ -4597,112 +4627,80 @@ export default function supernova() {
         }, 300); // 300ms debounce
       }
 
-      async function handleRefreshFields() {
-        try {
-          // Show loading state immediately
-          const refreshBtn = document.getElementById("smartMappingRefreshBtn");
-          if (refreshBtn) {
-            refreshBtn.textContent = "Refreshing...";
-            refreshBtn.style.background = "#ffc107";
-            refreshBtn.disabled = true;
-          }
 
-          console.log("🔄 Starting field refresh...");
-          console.log("Current layout before refresh:", layout);
 
-          // Get the fresh layout from the current object with timeout
-          const currentObject = await app.getObject(layout.qInfo.qId);
-          const freshLayout = await Promise.race([
-            currentObject.getLayout(),
-            new Promise((_, reject) =>
-              setTimeout(() => reject(new Error("Timeout")), 5000)
-            ),
-          ]);
 
-          console.log("Fresh layout received:", freshLayout);
 
-          // Update global layout reference - THIS IS CRITICAL
-          layout = freshLayout;
-          currentModalLayout = freshLayout; // Also update modal layout reference
+      // ===== END MODAL FUNCTIONS =====
 
-          // Force refresh the available fields from the updated layout
-          const availableFields = getAvailableFields(freshLayout);
-          console.log("Available fields after refresh:", availableFields);
+      // Helper function to compare layouts and show differences
+      function compareLayouts(oldLayout, newLayout, context = "") {
+        console.log(`🔍 Layout comparison (${context}):`);
+        
+        const oldDims = oldLayout?.qHyperCube?.qDimensionInfo?.map(d => d.qFallbackTitle) || [];
+        const newDims = newLayout?.qHyperCube?.qDimensionInfo?.map(d => d.qFallbackTitle) || [];
+        const oldMeasures = oldLayout?.qHyperCube?.qMeasureInfo?.map(m => m.qFallbackTitle) || [];
+        const newMeasures = newLayout?.qHyperCube?.qMeasureInfo?.map(m => m.qFallbackTitle) || [];
+        
+        console.log("Dimensions:", {
+          old: oldDims,
+          new: newDims,
+          removed: oldDims.filter(d => !newDims.includes(d)),
+          added: newDims.filter(d => !oldDims.includes(d))
+        });
+        
+        console.log("Measures:", {
+          old: oldMeasures,
+          new: newMeasures,
+          removed: oldMeasures.filter(m => !newMeasures.includes(m)),
+          added: newMeasures.filter(m => !oldMeasures.includes(m))
+        });
+        
+        const hasChanges = oldDims.length !== newDims.length || 
+                          oldMeasures.length !== newMeasures.length ||
+                          !oldDims.every(d => newDims.includes(d)) ||
+                          !oldMeasures.every(m => newMeasures.includes(m));
+        
+        console.log(`Layout has changes: ${hasChanges}`);
+        return hasChanges;
+      }
 
-          updateAvailableFieldsDisplay(availableFields);
-
-          // Update existing mappings with new field names if they exist
-          updateMappingsWithNewFieldNames(availableFields);
-
-          // CRITICAL: Refresh all displays in the correct order
-          setTimeout(() => {
-            console.log("Updating all displays after refresh...");
+      // Function to sync modal layout with main component layout
+      function syncModalLayout() {
+        // Compare layouts to see if there are actual changes
+        const oldLayout = currentModalLayout;
+        const newLayout = layout;
+        
+        if (oldLayout !== newLayout) {
+          console.log("🔄 Syncing modal layout with main component layout");
+          
+          // Show detailed comparison
+          compareLayouts(oldLayout, newLayout, "sync modal layout");
+          
+          // Update modal layout reference
+          currentModalLayout = newLayout;
+          
+          // If modal is open, refresh the available fields display immediately
+          const modal = document.getElementById("smartFieldMappingModal");
+          if (modal && modal.classList.contains("active")) {
+            console.log("🔄 Modal is open, auto-refreshing available fields display");
+            const availableFields = getAvailableFields(newLayout);
+            updateAvailableFieldsDisplay(availableFields);
+            
+            // Also update mappings and stats
+            updateMappingsWithNewFieldNames(availableFields);
             updateActiveMappingsDisplay();
-            updateFieldTagStates(); // This was missing the proper timing
+            updateFieldTagStates();
             updateMappingStats();
-
-            // Re-setup drag-drop handlers for new field tags
-            setupDragDropHandlers();
-
-            // If field selector is open, refresh it too
-            const fieldSelectorPopup =
-              document.getElementById("fieldSelectorPopup");
-            if (
-              fieldSelectorPopup &&
-              fieldSelectorPopup.style.display !== "none"
-            ) {
-              populateFieldSelectorOptions();
-            }
-
-            console.log("✅ All displays updated after refresh");
-          }, 100);
-
-          // Show success feedback
-          if (refreshBtn) {
-            refreshBtn.textContent = "Refreshed!";
-            refreshBtn.style.background = "#28a745";
-            refreshBtn.disabled = false;
-
+            
+            // Show notification to user
+            updateValidationMessage("🔄 Available fields automatically updated");
             setTimeout(() => {
-              refreshBtn.textContent = "Refresh";
-              refreshBtn.style.background = "#17a2b8";
-            }, 1000);
-          }
-
-          updateValidationMessage(
-            "✅ Fields refreshed - existing mappings updated"
-          );
-          setTimeout(() => {
-            updateValidationMessage(
-              "Ready to create field mappings - select text in your prompts"
-            );
-          }, 3000);
-
-          console.log("✅ Fields refreshed with latest layout");
-        } catch (error) {
-          console.error("Error refreshing fields:", error);
-
-          // Fallback to old method (faster) but still update displays
-          const availableFields = getAvailableFields(layout);
-          updateAvailableFieldsDisplay(availableFields);
-          updateFieldTagStates(); // Make sure this is called even in fallback
-
-          // Show error feedback
-          const refreshBtn = document.getElementById("smartMappingRefreshBtn");
-          if (refreshBtn) {
-            refreshBtn.textContent = "Try Again";
-            refreshBtn.style.background = "#dc3545";
-            refreshBtn.disabled = false;
-
-            setTimeout(() => {
-              refreshBtn.textContent = "Refresh";
-              refreshBtn.style.background = "#17a2b8";
+              updateValidationMessage("Ready to create field mappings - select text in your prompts");
             }, 2000);
           }
         }
       }
-
-      // ===== END MODAL FUNCTIONS =====
 
       // Main effect hook - Re-run when layout changes (selections, filters, etc.)
       useEffect(() => {
@@ -4711,6 +4709,9 @@ export default function supernova() {
         // NEW: Auto-load saved configuration when component initializes
         initializeWithSavedData();
         cleanupOldSavedData();
+        
+        // Sync modal layout with main component layout
+        syncModalLayout();
         const render = async () => {
           const props = layout?.props || {};
 
