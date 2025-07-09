@@ -4616,7 +4616,7 @@ export default function supernova() {
           console.log("Processing prompt change...");
 
           // Real-time field detection as user types/pastes
-          detectAndDisplayFields();
+          detectAndDisplayFields(currentModalLayout);
 
           // Update displays to reflect any changes
           updateActiveMappingsDisplay();
