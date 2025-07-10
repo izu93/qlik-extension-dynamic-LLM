@@ -2830,42 +2830,55 @@ export default function supernova() {
                 
                 <!-- Middle Panel: Prompts -->
                 <div class="smart-mapping-prompts-panel">
+                  <!-- Helpful Note -->
+                  <div style="
+                    background: #fff3cd; 
+                    border: 1px solid #ffeaa7; 
+                    border-radius: 4px; 
+                    padding: 6px 10px; 
+                    margin-bottom: 10px; 
+                    font-size: 10px; 
+                    color: #856404;
+                    text-align: center;
+                  ">
+                    💡 <strong>Tip:</strong> If you encounter any issues, try refreshing the page
+                  </div>
+                  
                   <!-- Mapping Mode Selector -->
                   <div class="smart-mapping-mode-selector" style="
                     background: #f8f9fa; 
                     border: 1px solid #dee2e6; 
-                    border-radius: 8px; 
-                    padding: 16px; 
-                    margin-bottom: 16px;
+                    border-radius: 6px; 
+                    padding: 8px 12px; 
+                    margin-bottom: 12px;
                   ">
-                    <div style="display: flex; align-items: center; margin-bottom: 12px;">
-                      <span style="font-size: 16px; margin-right: 8px;">⚙️</span>
-                      <strong style="font-size: 14px; color: #495057;">Choose Mapping Mode:</strong>
-                    </div>
-                    <div style="display: flex; gap: 12px; margin-bottom: 12px;">
-                      <label style="display: flex; align-items: center; cursor: pointer; padding: 8px 12px; border: 2px solid #007bff; border-radius: 6px; background: #007bff; color: white;">
-                        <input type="radio" name="mappingMode" value="select" checked style="margin-right: 8px;">
-                        <span style="font-size: 13px; font-weight: 500;">📝 Select & Map</span>
-                      </label>
-                      <label style="display: flex; align-items: center; cursor: pointer; padding: 8px 12px; border: 2px solid #6c757d; border-radius: 6px; background: white; color: #6c757d;">
-                        <input type="radio" name="mappingMode" value="drag" style="margin-right: 8px;">
-                        <span style="font-size: 13px; font-weight: 500;">🖱️ Drag & Drop</span>
-                      </label>
+                    <div style="display: flex; align-items: center; justify-content: space-between; gap: 12px;">
+                      <div style="display: flex; align-items: center; gap: 8px;">
+                        <span style="font-size: 12px;">⚙️</span>
+                        <strong style="font-size: 11px; color: #495057;">Mode:</strong>
+                      </div>
+                      <div style="display: flex; gap: 8px;">
+                        <label style="display: flex; align-items: center; cursor: pointer; padding: 4px 8px; border: 1px solid #007bff; border-radius: 4px; background: #007bff; color: white;">
+                          <input type="radio" name="mappingMode" value="select" checked style="margin-right: 4px; transform: scale(0.8);">
+                          <span style="font-size: 10px; font-weight: 500;">📝 Select & Map</span>
+                        </label>
+                        <label style="display: flex; align-items: center; cursor: pointer; padding: 4px 8px; border: 1px solid #6c757d; border-radius: 4px; background: white; color: #6c757d;">
+                          <input type="radio" name="mappingMode" value="drag" style="margin-right: 4px; transform: scale(0.8);">
+                          <span style="font-size: 10px; font-weight: 500;">🖱️ Drag & Drop</span>
+                        </label>
+                      </div>
                     </div>
                     <div id="modeInstructions" style="
                       background: #e3f2fd; 
                       border: 1px solid #bbdefb; 
-                      border-radius: 6px; 
-                      padding: 10px 12px; 
-                      font-size: 12px; 
+                      border-radius: 3px; 
+                      padding: 4px 8px; 
+                      font-size: 9px; 
                       color: #1565c0;
-                      line-height: 1.4;
+                      line-height: 1.2;
+                      margin-top: 6px;
                     ">
-                      <strong>Select & Map Mode:</strong><br>
-                      1. Paste your prompts below<br>
-                      2. Select/highlight text you want to map<br>
-                      3. Click on a field from the popup<br>
-                      4. Save your mappings when done
+                      <strong>Select & Map:</strong> Paste prompts → Select text → Click field from popup → Save
                     </div>
                   </div>
                   
@@ -3189,7 +3202,7 @@ export default function supernova() {
       .smart-mapping-textarea {
         width: 100%;
         height: 100%;
-        min-height: 180px;
+        min-height: 220px;
         padding: 16px;
         border: none;
         font-family: 'SF Mono', 'Monaco', 'Consolas', monospace;
@@ -4103,19 +4116,11 @@ export default function supernova() {
         if (instructionsDiv) {
           if (selectedMode === "select") {
             instructionsDiv.innerHTML = `
-              <strong>Select & Map Mode:</strong><br>
-              1. Paste your prompts below<br>
-              2. Select/highlight text you want to map<br>
-              3. Click on a field from the popup<br>
-              4. Save your mappings when done
+              <strong>Select & Map:</strong> Paste prompts → Select text → Click field from popup → Save
             `;
           } else if (selectedMode === "drag") {
             instructionsDiv.innerHTML = `
-              <strong>Drag & Drop Mode:</strong><br>
-              1. Paste your prompts below<br>
-              2. Drag any field from the left panel<br>
-              3. Drop it anywhere in the text areas<br>
-              4. Save your mappings when done
+              <strong>Drag & Drop:</strong> Paste prompts → Drag field from left → Drop anywhere → Save
             `;
           }
         }
