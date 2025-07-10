@@ -1819,7 +1819,7 @@ export default function supernova() {
               } else {
                 console.log("⚠️ No text selected - please select text first");
                 updateValidationMessage(
-                  "Please select text in the prompt first, then click a field"
+                  "Please select text in the prompt first, then click a field. Refresh the page to reset the mapping. "
                 );
                 setTimeout(() => {
                   updateValidationMessage(
